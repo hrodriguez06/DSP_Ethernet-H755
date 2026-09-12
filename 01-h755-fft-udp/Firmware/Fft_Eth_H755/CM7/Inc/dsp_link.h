@@ -38,10 +38,11 @@
 #endif
 
 /* Flags de estado del motor DSP */
-#define DSP_FLAG_RUNNING         (1u << 0)
-#define DSP_FLAG_SIGNAL_DETECTED (1u << 1)
-#define DSP_FLAG_CLIPPING        (1u << 2)
-#define DSP_FLAG_OVERRUN         (1u << 3)
+#define DSP_FLAG_RUNNING            (1u << 0)
+#define DSP_FLAG_SIGNAL_DETECTED    (1u << 1)
+#define DSP_FLAG_CLIPPING           (1u << 2)
+#define DSP_FLAG_OVERRUN            (1u << 3)
+#define DSP_FLAG_TRANSIENT_DETECTED (1u << 4)
 
 typedef struct
 {
@@ -89,7 +90,15 @@ typedef struct
   volatile uint32_t fault_bfar;
   volatile uint32_t fault_pc;
   volatile uint32_t fault_lr;
-  volatile uint32_t rsv2[66];        /**< Relleno exacto hasta offset 0x200    */
+
+  /* --- 0x0F8: Metricas Wavelet DWT calculadas por CM7 ---------------------- */
+  volatile uint32_t dwt_energy_pct_x10[5]; /**< % energia bandas D1..A4 x10 (20 B) */
+  volatile uint32_t dwt_rms_mv[5];         /**< RMS de bandas D1..A4 en mV (20 B)   */
+  volatile uint32_t dwt_transient_mag_mv;  /**< Amplitud pico del glitch en mV (4 B) */
+  volatile uint32_t dwt_transient_sample;  /**< Muestra del glitch (0..2047) (4 B)   */
+  volatile uint32_t dwt_transient_count;   /**< Contador acumulado transitorios (4 B)*/
+  volatile uint32_t dwt_d1_crest_x10;      /**< Factor cresta D1 x10 (4 B)          */
+  volatile uint32_t rsv2[52];        /**< Relleno exacto hasta offset 0x200    */
 
   /* --- 0x200: Buffer Ping-Pong (2 x 1024 uint16_t = 4096 bytes) ----------- */
   /* Buffer 0: 0x38000200 - 0x380009FF (2048 bytes)

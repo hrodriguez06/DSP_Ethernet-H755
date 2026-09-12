@@ -54,9 +54,34 @@ int UDP_DSP_HasSubscribers(void)
 }
 
 void UDP_DSP_SendTelemetry(const DSP_AnalysisResult_t *result,
+                           const DSP_WaveletResult_t  *dwt_res,
                            uint32_t block_id,
                            uint32_t timestamp_ms)
 {
+  /* 1. Publicar métricas Wavelet en SRAM4 para consulta/diagnóstico */
+  if (dwt_res != NULL)
+  {
+    for (int i = 0; i < 5; i++)
+    {
+      DSP_LINK->dwt_energy_pct_x10[i] = (uint32_t)(dwt_res->energy_pct[i] * 10.0f);
+      DSP_LINK->dwt_rms_mv[i]         = (uint32_t)dwt_res->rms_mv[i];
+    }
+    DSP_LINK->dwt_transient_mag_mv  = (uint32_t)dwt_res->transient_mag_mv;
+    DSP_LINK->dwt_transient_sample  = dwt_res->transient_sample;
+    DSP_LINK->dwt_transient_count   = dwt_res->transient_count;
+    DSP_LINK->dwt_d1_crest_x10      = (uint32_t)(dwt_res->d1_crest_factor * 10.0f);
+
+    if (dwt_res->transient_detected)
+    {
+      DSP_LINK->flags |= DSP_FLAG_TRANSIENT_DETECTED;
+    }
+    else
+    {
+      DSP_LINK->flags &= ~DSP_FLAG_TRANSIENT_DETECTED;
+    }
+    __DSB();
+  }
+
   if (s_sub_port == 0) return;
 
   UDP_DSP_TelemetryPacket_t pkt;
@@ -78,7 +103,29 @@ void UDP_DSP_SendTelemetry(const DSP_AnalysisResult_t *result,
   }
   pkt.dc_offset_mv = (uint16_t)result->dc_offset_mv;
   pkt.v_pp_mv      = (uint16_t)result->v_pp_mv;
-  pkt.rsv[0] = 0;
+
+  /* Rellenar extensión Wavelet */
+  if (dwt_res != NULL)
+  {
+    for (int i = 0; i < 5; i++)
+    {
+      pkt.dwt_energy_pct_x10[i] = (uint16_t)(dwt_res->energy_pct[i] * 10.0f);
+      pkt.dwt_rms_mv[i]         = (uint16_t)dwt_res->rms_mv[i];
+    }
+    pkt.dwt_transient_mag_mv = (uint16_t)dwt_res->transient_mag_mv;
+    pkt.dwt_transient_sample = (uint16_t)dwt_res->transient_sample;
+    pkt.dwt_transient_count  = (uint16_t)dwt_res->transient_count;
+    pkt.dwt_d1_crest_x10     = (uint16_t)(dwt_res->d1_crest_factor * 10.0f);
+  }
+  else
+  {
+    memset(pkt.dwt_energy_pct_x10, 0, sizeof(pkt.dwt_energy_pct_x10));
+    memset(pkt.dwt_rms_mv, 0, sizeof(pkt.dwt_rms_mv));
+    pkt.dwt_transient_mag_mv = 0;
+    pkt.dwt_transient_sample = 0;
+    pkt.dwt_transient_count  = 0;
+    pkt.dwt_d1_crest_x10     = 0;
+  }
 
   send_raw(&s_sub_addr, s_sub_port, &pkt, sizeof(pkt));
 }
@@ -165,18 +212,22 @@ static void udp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
   }
   else if (strcmp(buf, "STATUS") == 0)
   {
-    char resp[128];
+    char resp[256];
     uint32_t f0_x10 = DSP_LINK->f0_hz_x10;
     uint32_t thd_x10 = DSP_LINK->thd_pct_x10;
+    uint32_t d4_x10 = DSP_LINK->dwt_energy_pct_x10[3];
+    uint32_t a4_x10 = DSP_LINK->dwt_energy_pct_x10[4];
     snprintf(resp, sizeof(resp),
-             "STATUS: block=%lu f0=%lu.%luHz Vpk=%lumV Vdc=%lumV Vpp=%lumV noise=%lumV thd=%lu.%lu%% flags=0x%lx\r\n",
+             "STATUS: block=%lu f0=%lu.%luHz Vpk=%lumV Vdc=%lumV Vpp=%lumV thd=%lu.%lu%% D4_E=%lu.%lu%% A4_E=%lu.%lu%% trans_cnt=%lu flags=0x%lx\r\n",
              DSP_LINK->block_id,
              f0_x10 / 10u, f0_x10 % 10u,
              DSP_LINK->f0_mag_mv,
              DSP_LINK->dc_offset_mv,
              DSP_LINK->v_pp_mv,
-             DSP_LINK->noise_floor_mv,
              thd_x10 / 10u, thd_x10 % 10u,
+             d4_x10 / 10u, d4_x10 % 10u,
+             a4_x10 / 10u, a4_x10 % 10u,
+             DSP_LINK->dwt_transient_count,
              DSP_LINK->flags);
     send_text(addr, port, resp);
   }

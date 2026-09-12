@@ -27,7 +27,7 @@ let lastSpectrum = null;
 let partialSpectrum = { block_id: 0, bins: new Array(1024).fill(0), receivedParts: new Set() };
 
 udpSocket.on('message', (msg, rinfo) => {
-  if (msg.length === 70 || msg.length === 60) {
+  if (msg.length >= 60 && msg.length <= 128) {
     const magic = msg.readUInt32LE(0);
     if (magic === UDP_MAGIC_TELEMETRY) {
       const block_id = msg.readUInt32LE(4);
@@ -49,6 +49,42 @@ udpSocket.on('message', (msg, rinfo) => {
       const dc_offset_mv = msg.readUInt16LE(44 + harmCount * 2);
       const v_pp_mv = msg.readUInt16LE(44 + harmCount * 2 + 2);
 
+      // Metricas Wavelet DWT Mallat (si vienen en el paquete >= 96 B)
+      let wavelet = null;
+      if (msg.length >= 96) {
+        const offset = 68;
+        const energy_pct = [
+          msg.readUInt16LE(offset + 0) / 10.0,
+          msg.readUInt16LE(offset + 2) / 10.0,
+          msg.readUInt16LE(offset + 4) / 10.0,
+          msg.readUInt16LE(offset + 6) / 10.0,
+          msg.readUInt16LE(offset + 8) / 10.0
+        ];
+        const rms_mv = [
+          msg.readUInt16LE(offset + 10),
+          msg.readUInt16LE(offset + 12),
+          msg.readUInt16LE(offset + 14),
+          msg.readUInt16LE(offset + 16),
+          msg.readUInt16LE(offset + 18)
+        ];
+        const transient_mag_mv = msg.readUInt16LE(offset + 20);
+        const transient_sample = msg.readUInt16LE(offset + 22);
+        const transient_count = msg.readUInt16LE(offset + 24);
+        const crest_factor = msg.readUInt16LE(offset + 26) / 10.0;
+        const transient_detected = (flags & 0x10) !== 0;
+
+        wavelet = {
+          energy_pct, // [D1, D2, D3, D4, A4]
+          rms_mv,     // [D1, D2, D3, D4, A4]
+          transient_detected,
+          transient_mag_mv,
+          transient_sample,
+          transient_time_us: Math.round((transient_sample * 1000000) / (fs_hz || 25600)),
+          transient_count,
+          crest_factor
+        };
+      }
+
       const payload = {
         type: 'telemetry',
         block_id,
@@ -64,7 +100,8 @@ udpSocket.on('message', (msg, rinfo) => {
         thd_pct: (thd_pct_x10 / 10.0),
         flags,
         detected: (flags & 0x02) !== 0,
-        harmonics
+        harmonics,
+        wavelet
       };
 
       lastTelemetry = payload;
@@ -189,6 +226,12 @@ const server = http.createServer((req, res) => {
         sendBoardCommand('STOP');
       }
     });
+    return;
+  }
+
+  if (req.url === '/api/telemetry') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(lastTelemetry || { status: 'waiting_data' }));
     return;
   }
 

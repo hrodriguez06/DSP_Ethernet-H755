@@ -18,6 +18,7 @@
 #include "lwip.h"
 #include "dsp_link.h"
 #include "dsp_engine.h"
+#include "dsp_wavelet.h"
 #include "udp_dsp.h"
 #include "mpu_config.h"
 #include "vcp_uart.h"
@@ -81,10 +82,12 @@ int main(void)
   printf("[IPC] Parametros: fs=%lu Hz, N=%lu, VREFINT_CAL=%lu\r\n",
          DSP_LINK->fs_hz, DSP_LINK->block_size, DSP_LINK->vrefint_cal);
 
-  /* 6. Inicializar motor CMSIS-DSP */
-  printf("[DSP] Inicializando motor CMSIS-DSP (RFFT-1024 + Hanning)...\r\n");
+  /* 6. Inicializar motor CMSIS-DSP y DWT Wavelet */
+  printf("[DSP] Inicializando motor CMSIS-DSP (Blackman-Harris 4T + RFFT-2048)...\r\n");
   DSP_Engine_Init();
-  printf("[DSP] Motor listo.\r\n");
+  printf("[DSP] Inicializando motor Wavelet DWT Mallat (Daubechies-4, 4 niveles)...\r\n");
+  DSP_Wavelet_Init();
+  printf("[DSP] Motores listos.\r\n");
 
   /* 7. Inicializar pila lwIP y supervisor de enlace */
   printf("[NET] Inicializando lwIP y MAC Ethernet...\r\n");
@@ -108,14 +111,19 @@ int main(void)
       last_processed_block = current_block;
       uint32_t ready_idx = DSP_LINK->ready_idx;
 
-      /* Procesar bloque con CMSIS-DSP (toma ~60 us en M7 a 400 MHz) */
+      /* 1. Procesar bloque con CMSIS-DSP (toma ~60 us en M7 a 400 MHz) */
       DSP_AnalysisResult_t res;
       DSP_Engine_ProcessBlock(DSP_LINK->raw_buffer[ready_idx], DSP_LINK->fs_hz, &res);
 
-      /* Si hay un cliente UDP escuchando, transmitir paquete de telemetria */
+      /* 2. Procesar bloque con DWT Wavelet Mallat db4 (toma ~70 us en M7 a 400 MHz) */
+      DSP_WaveletResult_t dwt_res;
+      float32_t mean_code = (res.dc_offset_mv * 65535.0f) / 3300.0f;
+      DSP_Wavelet_ProcessBlock(DSP_LINK->raw_buffer[ready_idx], DSP_LINK->fs_hz, mean_code, &dwt_res);
+
+      /* 3. Si hay un cliente UDP escuchando, transmitir paquete de telemetria combinado */
       if (UDP_DSP_HasSubscribers())
       {
-        UDP_DSP_SendTelemetry(&res, current_block, DSP_LINK->t_block_ms);
+        UDP_DSP_SendTelemetry(&res, &dwt_res, current_block, DSP_LINK->t_block_ms);
       }
     }
 
@@ -138,15 +146,17 @@ int main(void)
         uint32_t f0_x10 = DSP_LINK->f0_hz_x10;
         uint32_t thd_x10 = DSP_LINK->thd_pct_x10;
         int det = (DSP_LINK->flags & DSP_FLAG_SIGNAL_DETECTED) ? 1 : 0;
+        uint32_t d4_x10 = DSP_LINK->dwt_energy_pct_x10[3];
 
-        printf("[DSP] Bloque %6lu | %s | f0: %5lu.%1lu Hz | Vpk: %4lu mV | Vdc: %4lu mV | Vpp: %4lu mV | THD: %3lu.%1lu %%\r\n",
+        printf("[DSP] Blk %6lu | %s | f0: %5lu.%1lu Hz | Vpk: %4lu mV | Vdc: %4lu mV | THD: %3lu.%1lu %% | D4_E: %3lu.%1lu %% | Trans: %lu\r\n",
                DSP_LINK->block_id,
                det ? "PERIODICO" : "   RUIDO ",
                f0_x10 / 10u, f0_x10 % 10u,
                DSP_LINK->f0_mag_mv,
                DSP_LINK->dc_offset_mv,
-               DSP_LINK->v_pp_mv,
-               thd_x10 / 10u, thd_x10 % 10u);
+               thd_x10 / 10u, thd_x10 % 10u,
+               d4_x10 / 10u, d4_x10 % 10u,
+               DSP_LINK->dwt_transient_count);
       }
     }
   }
