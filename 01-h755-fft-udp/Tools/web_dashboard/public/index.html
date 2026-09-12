@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>STM32H755 FFT & DSP Monitor</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #131b2e;
+      --card-border: #1e293b;
+      --card-hover: #1c2742;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-blue: #3b82f6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      padding: env(safe-area-inset-top, 12px) env(safe-area-inset-right, 12px) env(safe-area-inset-bottom, 16px) env(safe-area-inset-left, 12px);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 4px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand span {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--accent-emerald);
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: ui-monospace, monospace;
+    }
+
+    .status-pill.offline {
+      background: rgba(244, 63, 94, 0.1);
+      border-color: rgba(244, 63, 94, 0.3);
+      color: var(--accent-rose);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: currentColor;
+      box-shadow: 0 0 8px currentColor;
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Signal Banner */
+    .banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      transition: border-color 0.3s ease;
+    }
+
+    .banner.detected {
+      border-color: rgba(16, 185, 129, 0.4);
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, var(--card-bg) 100%);
+    }
+
+    .banner.noise {
+      border-color: rgba(148, 163, 184, 0.3);
+      background: linear-gradient(180deg, rgba(148, 163, 184, 0.05) 0%, var(--card-bg) 100%);
+    }
+
+    .banner-title {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .banner-state {
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .banner.detected .banner-state { color: var(--accent-emerald); }
+    .banner.noise .banner-state { color: var(--text-muted); }
+
+    .block-info {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: ui-monospace, monospace;
+      text-align: right;
+    }
+
+    /* Metric Cards Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    @media (min-width: 640px) {
+      .grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card.highlight {
+      grid-column: span 2;
+      border-color: rgba(6, 182, 212, 0.4);
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, var(--card-bg) 60%);
+    }
+
+    .card-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .card-value {
+      font-size: 1.7rem;
+      font-weight: 800;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .card.highlight .card-value {
+      font-size: 2.2rem;
+      color: #38bdf8;
+    }
+
+    .card-unit {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-left: 2px;
+    }
+
+    .card-sub {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      margin-top: 4px;
+      font-family: ui-monospace, monospace;
+    }
+
+    .meter-bar {
+      height: 4px;
+      width: 100%;
+      background: #1e293b;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .meter-fill {
+      height: 100%;
+      background: var(--accent-cyan);
+      border-radius: 2px;
+      transition: width 0.15s ease-out;
+    }
+
+    /* Armónicos */
+    .harmonics-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+
+    .harmonics-header {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .harmonics-bars {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      height: 70px;
+      align-items: flex-end;
+      padding-top: 10px;
+    }
+
+    .harm-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+
+    .harm-bar-track {
+      width: 100%;
+      height: 100%;
+      background: #1e293b;
+      border-radius: 4px;
+      display: flex;
+      align-items: flex-end;
+      overflow: hidden;
+    }
+
+    .harm-bar-fill {
+      width: 100%;
+      background: linear-gradient(180deg, #38bdf8, #2563eb);
+      border-radius: 4px;
+      transition: height 0.15s ease-out;
+      min-height: 2px;
+    }
+
+    .harm-col:first-child .harm-bar-fill {
+      background: linear-gradient(180deg, #10b981, #059669);
+    }
+
+    .harm-label {
+      font-size: 0.68rem;
+      font-family: ui-monospace, monospace;
+      color: var(--text-muted);
+    }
+
+    .harm-val {
+      font-size: 0.65rem;
+      font-family: ui-monospace, monospace;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    /* Espectro Canvas */
+    .spectrum-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .spectrum-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .spectrum-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .spectrum-info {
+      font-size: 0.72rem;
+      font-family: ui-monospace, monospace;
+      color: var(--accent-cyan);
+    }
+
+    /* Osciloscopio Reconstruido */
+    .scope-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .scope-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .scope-title-box {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .scope-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .scope-sub {
+      font-size: 0.65rem;
+      color: #64748b;
+      font-family: ui-monospace, monospace;
+    }
+
+    .scope-legend {
+      font-size: 0.72rem;
+      font-family: ui-monospace, monospace;
+      display: flex;
+      gap: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--text-muted);
+    }
+
+    .legend-item b {
+      color: var(--text-main);
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dot.wave { background: var(--accent-emerald); box-shadow: 0 0 6px var(--accent-emerald); }
+    .dot.dc { background: var(--accent-amber); box-shadow: 0 0 6px var(--accent-amber); }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      height: 180px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #080d1a;
+      border: 1px solid #1e293b;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Control Toolbar */
+    .control-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 8px 12px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .control-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    .rate-buttons {
+      display: flex;
+      gap: 4px;
+      background: #080d1a;
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+    }
+
+    .rate-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-family: ui-monospace, monospace;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .rate-btn.active {
+      background: var(--accent-cyan);
+      color: #0b0f19;
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
+    }
+
+    .control-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .action-btn {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+
+    .action-btn.active {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: var(--accent-emerald);
+      color: var(--accent-emerald);
+    }
+
+    .action-btn.paused {
+      background: rgba(244, 63, 94, 0.2);
+      border-color: var(--accent-rose);
+      color: var(--accent-rose);
+    }
+
+    /* Footer */
+    footer {
+      margin-top: auto;
+      text-align: center;
+      padding: 10px 4px;
+      font-size: 0.7rem;
+      color: #64748b;
+      font-family: ui-monospace, monospace;
+      display: flex;
+      justify-content: space-between;
+      border-top: 1px solid var(--card-border);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <h1>STM32H755 FFT MONITOR</h1>
+      <span>Dual-Core D3 IPC + lwIP UDP :5002</span>
+    </div>
+    <div class="status-pill" id="statusPill">
+      <div class="pulse-dot"></div>
+      <span id="statusText">CONECTADO</span>
+    </div>
+  </header>
+
+  <!-- Barra de Control de Tasa de Refresco y Pausa -->
+  <div class="control-bar">
+    <div class="control-group">
+      <span class="control-label">Lectura:</span>
+      <div class="rate-buttons" id="rateButtons">
+        <button class="rate-btn" data-rate="2000">2.0s</button>
+        <button class="rate-btn" data-rate="1000">1.0s</button>
+        <button class="rate-btn active" data-rate="500">0.5s</button>
+        <button class="rate-btn" data-rate="200">0.2s</button>
+        <button class="rate-btn" data-rate="40">25Hz</button>
+      </div>
+    </div>
+    <div class="control-actions">
+      <button class="action-btn active" id="btnSmoothing">Filtro: ON</button>
+      <button class="action-btn" id="btnHold">⏸ Pausar</button>
+    </div>
+  </div>
+
+  <!-- Banner de Deteccion -->
+  <div class="banner noise" id="signalBanner">
+    <div>
+      <div class="banner-title">Estado de Señal (PA3 / A0)</div>
+      <div class="banner-state" id="signalStateText">ESPERANDO DATOS...</div>
+    </div>
+    <div class="block-info">
+      <div>Bloque <span id="blockId">0</span></div>
+      <div id="fsInfo">Fs: 25.6 kHz (2048)</div>
+    </div>
+  </div>
+
+  <!-- Métricas Principales -->
+  <div class="grid">
+    <!-- Frecuencia Fundamental -->
+    <div class="card highlight">
+      <span class="card-label">Frecuencia Fundamental (f0)</span>
+      <div class="card-value">
+        <span id="f0Val">0.0</span><span class="card-unit">Hz</span>
+      </div>
+      <div class="card-sub">
+        <span id="resInfo">Resolución: 12.5 Hz/bin</span>
+        <span>Rango: 0 - 12.8 kHz</span>
+      </div>
+    </div>
+
+    <!-- Amplitud Pico -->
+    <div class="card">
+      <span class="card-label">Amplitud Pico</span>
+      <div class="card-value">
+        <span id="magVal">0</span><span class="card-unit">mV</span>
+      </div>
+      <div class="meter-bar">
+        <div class="meter-fill" id="magMeter" style="width: 0%;"></div>
+      </div>
+      <div class="card-sub">
+        <span>Piso: <span id="noiseVal">0</span> mV</span>
+      </div>
+    </div>
+
+    <!-- THD Distorsión -->
+    <div class="card">
+      <span class="card-label">Distorsión (THD)</span>
+      <div class="card-value">
+        <span id="thdVal">0.0</span><span class="card-unit">%</span>
+      </div>
+      <div class="meter-bar">
+        <div class="meter-fill" id="thdMeter" style="width: 0%; background: var(--accent-emerald);"></div>
+      </div>
+      <div class="card-sub">
+        <span id="thdQuality">Excelente</span>
+      </div>
+    </div>
+
+    <!-- SNR -->
+    <div class="card">
+      <span class="card-label">Relación S/R (SNR)</span>
+      <div class="card-value">
+        <span id="snrVal">0.0</span><span class="card-unit">dB</span>
+      </div>
+      <div class="card-sub">
+        <span>Umbral det: 12.0 dB</span>
+      </div>
+    </div>
+
+    <!-- Offset DC -->
+    <div class="card">
+      <span class="card-label">Offset DC</span>
+      <div class="card-value">
+        <span id="dcVal">0</span><span class="card-unit">mV</span>
+      </div>
+      <div class="meter-bar">
+        <div class="meter-fill" id="dcMeter" style="width: 0%; background: var(--accent-amber);"></div>
+      </div>
+      <div class="card-sub">
+        <span>Vdc: <span id="dcVolt">0.00</span> V</span>
+      </div>
+    </div>
+
+    <!-- Voltaje Pico a Pico (Vpp) -->
+    <div class="card">
+      <span class="card-label">Voltaje Pico a Pico</span>
+      <div class="card-value">
+        <span id="vppVal">0</span><span class="card-unit">mV</span>
+      </div>
+      <div class="meter-bar">
+        <div class="meter-fill" id="vppMeter" style="width: 0%; background: #a855f7;"></div>
+      </div>
+      <div class="card-sub">
+        <span>Vpp: <span id="vppVolt">0.00</span> V</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel de Armónicos -->
+  <div class="harmonics-panel">
+    <div class="harmonics-header">
+      <span>Amplitud de Armónicos (H1 .. H10)</span>
+      <span id="harmonicsTotal">Total: 0 mV</span>
+    </div>
+    <div class="harmonics-bars">
+      <div class="harm-col">
+        <span class="harm-val" id="h1Val">0</span>
+        <div class="harm-bar-track"><div class="harm-bar-fill" id="h1Bar" style="height: 0%;"></div></div>
+        <span class="harm-label">1x</span>
+      </div>
+      <div class="harm-col">
+        <span class="harm-val" id="h2Val">0</span>
+        <div class="harm-bar-track"><div class="harm-bar-fill" id="h2Bar" style="height: 0%;"></div></div>
+        <span class="harm-label">2x</span>
+      </div>
+      <div class="harm-col">
+        <span class="harm-val" id="h3Val">0</span>
+        <div class="harm-bar-track"><div class="harm-bar-fill" id="h3Bar" style="height: 0%;"></div></div>
+        <span class="harm-label">3x</span>
+      </div>
+      <div class="harm-col">
+        <span class="harm-val" id="h4Val">0</span>
+        <div class="harm-bar-track"><div class="harm-bar-fill" id="h4Bar" style="height: 0%;"></div></div>
+        <span class="harm-label">4x</span>
+      </div>
+      <div class="harm-col">
+        <span class="harm-val" id="h5Val">0</span>
+        <div class="harm-bar-track"><div class="harm-bar-fill" id="h5Bar" style="height: 0%;"></div></div>
+        <span class="harm-label">5x</span>
+      </div>
+      <div class="harm-col">
+        <span class="harm-val" id="h6Val">0</span>
+        <div class="harm-bar-track"><div class="harm-bar-fill" id="h6Bar" style="height: 0%;"></div></div>
+        <span class="harm-label">6x</span>
+      </div>
+      <div class="harm-col">
+        <span class="harm-val" id="h7Val">0</span>
+        <div class="harm-bar-track"><div class="harm-bar-fill" id="h7Bar" style="height: 0%;"></div></div>
+        <span class="harm-label">7x</span>
+      </div>
+      <div class="harm-col">
+        <span class="harm-val" id="h8Val">0</span>
+        <div class="harm-bar-track"><div class="harm-bar-fill" id="h8Bar" style="height: 0%;"></div></div>
+        <span class="harm-label">8x</span>
+      </div>
+      <div class="harm-col">
+        <span class="harm-val" id="h9Val">0</span>
+        <div class="harm-bar-track"><div class="harm-bar-fill" id="h9Bar" style="height: 0%;"></div></div>
+        <span class="harm-label">9x</span>
+      </div>
+      <div class="harm-col">
+        <span class="harm-val" id="h10Val">0</span>
+        <div class="harm-bar-track"><div class="harm-bar-fill" id="h10Bar" style="height: 0%;"></div></div>
+        <span class="harm-label">10x</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Osciloscopio: Forma de Onda Reconstruida por Síntesis de Fourier -->
+  <div class="scope-panel">
+    <div class="scope-header">
+      <div class="scope-title-box">
+        <span class="scope-title">Osciloscopio: Forma de Onda Reconstruida</span>
+        <span class="scope-sub">v(t) = Vdc + &Sigma; (Hn &middot; sin(2&pi;&middot;n&middot;f0&middot;t)) &bull; 2 Ciclos</span>
+      </div>
+      <div class="scope-legend">
+        <span class="legend-item"><span class="dot wave"></span> v(t)</span>
+        <span class="legend-item"><span class="dot dc"></span> Vdc: <b id="scopeDcVal">1.50 V</b></span>
+        <span class="legend-item">Vpp: <b id="scopeVppVal">0.00 V</b></span>
+      </div>
+    </div>
+    <div class="canvas-container" id="scopeBox">
+      <canvas id="scopeCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Espectro FFT Completo (1024 Bins) -->
+  <div class="spectrum-panel">
+    <div class="spectrum-header">
+      <span class="spectrum-title" id="specTitle">Espectro de Magnitud FFT (1024 Bins: 0 .. 12.8 kHz)</span>
+      <span class="spectrum-info" id="specPeakInfo">Max: 0 mV</span>
+    </div>
+    <div class="canvas-container" id="canvasBox">
+      <canvas id="spectrumCanvas"></canvas>
+    </div>
+  </div>
+
+  <footer>
+    <span>NUCLEO-H755ZI-Q</span>
+    <span id="netRate">25 Hz UDP</span>
+    <span>CM4 + CM7 Dual-Core</span>
+  </footer>
+
+  <script>
+    // Elementos DOM
+    const statusPill = document.getElementById('statusPill');
+    const statusText = document.getElementById('statusText');
+    const signalBanner = document.getElementById('signalBanner');
+    const signalStateText = document.getElementById('signalStateText');
+    const blockIdEl = document.getElementById('blockId');
+    const f0Val = document.getElementById('f0Val');
+    const magVal = document.getElementById('magVal');
+    const magMeter = document.getElementById('magMeter');
+    const noiseVal = document.getElementById('noiseVal');
+    const thdVal = document.getElementById('thdVal');
+    const thdMeter = document.getElementById('thdMeter');
+    const thdQuality = document.getElementById('thdQuality');
+    const snrVal = document.getElementById('snrVal');
+    const netRateEl = document.getElementById('netRate');
+
+    // Controles UI
+    const rateButtons = document.querySelectorAll('#rateButtons .rate-btn');
+    const btnSmoothing = document.getElementById('btnSmoothing');
+    const btnHold = document.getElementById('btnHold');
+
+    let refreshIntervalMs = 500; // 0.5s por defecto
+    let isPaused = false;
+    let enableSmoothing = true;
+    let lastUiTime = 0;
+    let smoothed = null;
+    const ALPHA = 0.35; // Coeficiente EMA (0.35 = respuesta rápida pero estable)
+
+    const hEls = [];
+    for (let i = 1; i <= 10; i++) {
+      hEls.push({
+        val: document.getElementById(`h${i}Val`),
+        bar: document.getElementById(`h${i}Bar`)
+      });
+    }
+
+    const specPeakInfo = document.getElementById('specPeakInfo');
+    const canvas = document.getElementById('spectrumCanvas');
+    const ctx = canvas.getContext('2d');
+    const canvasBox = document.getElementById('canvasBox');
+
+    // Osciloscopio DOM
+    const scopeCanvas = document.getElementById('scopeCanvas');
+    const scopeCtx = scopeCanvas.getContext('2d');
+    const scopeBox = document.getElementById('scopeBox');
+    const scopeDcVal = document.getElementById('scopeDcVal');
+    const scopeVppVal = document.getElementById('scopeVppVal');
+    let lastWaveformData = null;
+
+    let currentBins = new Array(1024).fill(0);
+    let peakBinIndex = 0;
+
+    // Filtro de Media Móvil Exponencial (EMA)
+    function applySmoothing(raw) {
+      if (!smoothed) {
+        smoothed = {
+          f0_hz: raw.f0_hz,
+          f0_mag_mv: raw.f0_mag_mv,
+          noise_floor_mv: raw.noise_floor_mv,
+          snr_db: raw.snr_db,
+          thd_pct: raw.thd_pct,
+          dc_offset_mv: raw.dc_offset_mv || 0,
+          v_pp_mv: raw.v_pp_mv || 0,
+          harmonics: [...(raw.harmonics || new Array(10).fill(0))]
+        };
+        return raw;
+      }
+
+      smoothed.f0_hz += ALPHA * (raw.f0_hz - smoothed.f0_hz);
+      smoothed.f0_mag_mv += ALPHA * (raw.f0_mag_mv - smoothed.f0_mag_mv);
+      smoothed.noise_floor_mv += ALPHA * (raw.noise_floor_mv - smoothed.noise_floor_mv);
+      smoothed.snr_db += ALPHA * (raw.snr_db - smoothed.snr_db);
+      smoothed.thd_pct += ALPHA * (raw.thd_pct - smoothed.thd_pct);
+      smoothed.dc_offset_mv += ALPHA * ((raw.dc_offset_mv || 0) - smoothed.dc_offset_mv);
+      smoothed.v_pp_mv += ALPHA * ((raw.v_pp_mv || 0) - smoothed.v_pp_mv);
+
+      const hCount = raw.harmonics ? raw.harmonics.length : 10;
+      smoothed.harmonics = smoothed.harmonics || [];
+      for (let i = 0; i < hCount; i++) {
+        const rawH = (raw.harmonics && raw.harmonics[i] !== undefined) ? raw.harmonics[i] : 0;
+        const curH = smoothed.harmonics[i] !== undefined ? smoothed.harmonics[i] : rawH;
+        smoothed.harmonics[i] = curH + ALPHA * (rawH - curH);
+      }
+
+      return {
+        ...raw,
+        f0_hz: smoothed.f0_hz,
+        f0_mag_mv: Math.round(smoothed.f0_mag_mv),
+        noise_floor_mv: Math.round(smoothed.noise_floor_mv),
+        snr_db: smoothed.snr_db,
+        thd_pct: smoothed.thd_pct,
+        dc_offset_mv: Math.round(smoothed.dc_offset_mv),
+        v_pp_mv: Math.round(smoothed.v_pp_mv),
+        harmonics: smoothed.harmonics.map(v => Math.round(v))
+      };
+    }
+
+    // Ajuste de DPI y tamaño para canvas FFT
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvasBox.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+      renderSpectrum();
+    }
+
+    // Ajuste de DPI y tamaño para canvas de Osciloscopio
+    function resizeScopeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = scopeBox.getBoundingClientRect();
+      scopeCanvas.width = rect.width * dpr;
+      scopeCanvas.height = rect.height * dpr;
+      scopeCtx.scale(dpr, dpr);
+      if (lastWaveformData) {
+        renderOscilloscope(lastWaveformData);
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      resizeScopeCanvas();
+    });
+
+    // Render del Osciloscopio Reconstruido (Síntesis de Fourier)
+    function renderOscilloscope(data) {
+      lastWaveformData = data;
+      const rect = scopeBox.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+
+      scopeCtx.clearRect(0, 0, w, h);
+
+      const f0 = data.f0_hz || 0;
+      const vdc = (data.dc_offset_mv !== undefined) ? data.dc_offset_mv : 1500;
+      const vpp = (data.v_pp_mv !== undefined) ? data.v_pp_mv : 0;
+      const harms = data.harmonics || [0, 0, 0, 0, 0];
+
+      if (scopeDcVal) scopeDcVal.textContent = (vdc / 1000.0).toFixed(2) + ' V';
+      if (scopeVppVal) scopeVppVal.textContent = (vpp / 1000.0).toFixed(2) + ' V';
+
+      // Rango vertical: 0 mV a 3300 mV (rango de entrada ADC)
+      const vMax = 3300.0;
+      const toY = (mv) => {
+        const norm = Math.max(0, Math.min(1.0, mv / vMax));
+        return (h - 16) - (norm * (h - 26));
+      };
+
+      // 1. Rejilla horizontal de voltajes
+      scopeCtx.strokeStyle = '#1e293b';
+      scopeCtx.lineWidth = 1;
+      scopeCtx.fillStyle = '#64748b';
+      scopeCtx.font = '10px monospace';
+
+      const vLines = [500, 1000, 1500, 2000, 2500, 3000];
+      vLines.forEach(mv => {
+        const y = toY(mv);
+        scopeCtx.beginPath();
+        scopeCtx.moveTo(0, y);
+        scopeCtx.lineTo(w, y);
+        scopeCtx.stroke();
+        scopeCtx.fillText((mv / 1000).toFixed(1) + 'V', 6, y - 3);
+      });
+
+      // 2. Línea de referencia Offset DC en ámbar punteado
+      const dcY = toY(vdc);
+      scopeCtx.save();
+      scopeCtx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
+      scopeCtx.setLineDash([4, 4]);
+      scopeCtx.lineWidth = 1.2;
+      scopeCtx.beginPath();
+      scopeCtx.moveTo(0, dcY);
+      scopeCtx.lineTo(w, dcY);
+      scopeCtx.stroke();
+      scopeCtx.fillStyle = 'rgba(245, 158, 11, 0.9)';
+      scopeCtx.fillText(`Vdc=${(vdc / 1000).toFixed(2)}V`, w - 80, dcY - 4);
+      scopeCtx.restore();
+
+      // 3. Rejilla vertical temporal (divisiones de ciclo: 0, 0.5T, 1.0T, 1.5T, 2.0T)
+      const tDivs = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+      const periodMs = f0 > 0 ? (1000.0 / f0) : 0;
+      tDivs.forEach(frac => {
+        const x = (frac / 2.0) * w;
+        scopeCtx.beginPath();
+        scopeCtx.moveTo(x, 0);
+        scopeCtx.lineTo(x, h - 14);
+        scopeCtx.stroke();
+        if (frac === 1.0 && periodMs > 0) {
+          scopeCtx.fillText('1T (' + periodMs.toFixed(2) + 'ms)', x - 28, h - 3);
+        } else if (frac === 2.0) {
+          scopeCtx.fillText('2T', x - 18, h - 3);
+        }
+      });
+
+      // 4. Reconstrucción de onda por Síntesis de Fourier: v(t) = Vdc + SUM(Hn * sin(n * theta))
+      const points = 250;
+      const waveY = new Float32Array(points);
+
+      for (let i = 0; i < points; i++) {
+        const phi = (i / (points - 1)) * (4.0 * Math.PI); // 2 ciclos completos (0 a 4pi)
+        let v = vdc;
+
+        if (data.detected && f0 > 0) {
+          const hLen = Math.min(10, harms.length);
+          for (let n = 1; n <= hLen; n++) {
+            const hMag = harms[n - 1] || 0;
+            v += hMag * Math.sin(n * phi);
+          }
+        }
+
+        waveY[i] = toY(v);
+      }
+
+      // Relleno suave bajo la curva
+      const grad = scopeCtx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, 'rgba(16, 185, 129, 0.2)');
+      grad.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+
+      scopeCtx.beginPath();
+      scopeCtx.moveTo(0, dcY);
+      for (let i = 0; i < points; i++) {
+        const x = (i / (points - 1)) * w;
+        scopeCtx.lineTo(x, waveY[i]);
+      }
+      scopeCtx.lineTo(w, dcY);
+      scopeCtx.fillStyle = grad;
+      scopeCtx.fill();
+
+      // Trazo de la forma de onda
+      scopeCtx.save();
+      scopeCtx.shadowColor = 'rgba(16, 185, 129, 0.7)';
+      scopeCtx.shadowBlur = 5;
+      scopeCtx.strokeStyle = '#10b981';
+      scopeCtx.lineWidth = 2.2;
+      scopeCtx.beginPath();
+
+      for (let i = 0; i < points; i++) {
+        const x = (i / (points - 1)) * w;
+        if (i === 0) scopeCtx.moveTo(x, waveY[i]);
+        else scopeCtx.lineTo(x, waveY[i]);
+      }
+      scopeCtx.stroke();
+      scopeCtx.restore();
+    }
+
+    // Render del espectro FFT (dinámico: 512 o 1024 bins)
+    function renderSpectrum() {
+      const rect = canvasBox.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      const numBins = currentBins.length || 1024;
+      const df = 12800.0 / numBins;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Dibujar lineas de cuadricula (1k, 3k, 6k, 9k, 12k)
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1;
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px monospace';
+
+      const freqs = [1000, 3000, 6000, 9000, 12000];
+      freqs.forEach(freq => {
+        const x = (freq / 12800) * w;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h - 14);
+        ctx.stroke();
+        ctx.fillText((freq / 1000) + 'k', x - 8, h - 3);
+      });
+
+      // Escala de amplitud
+      let maxVal = 10;
+      for (let i = 0; i < numBins; i++) {
+        if (currentBins[i] > maxVal) maxVal = currentBins[i];
+      }
+      specPeakInfo.textContent = `Pico: ${maxVal} mV (${(peakBinIndex * df).toFixed(1)} Hz)`;
+
+      // Curva del espectro
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, 'rgba(56, 189, 248, 0.4)');
+      grad.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+
+      ctx.beginPath();
+      ctx.moveTo(0, h - 14);
+
+      for (let i = 0; i < numBins; i++) {
+        const x = (i / (numBins - 1)) * w;
+        const norm = Math.min(1.0, currentBins[i] / (maxVal * 1.15));
+        const y = (h - 16) - (norm * (h - 24));
+        ctx.lineTo(x, y);
+      }
+
+      ctx.lineTo(w, h - 14);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Linea de trazo
+      ctx.beginPath();
+      for (let i = 0; i < numBins; i++) {
+        const x = (i / (numBins - 1)) * w;
+        const norm = Math.min(1.0, currentBins[i] / (maxVal * 1.15));
+        const y = (h - 16) - (norm * (h - 24));
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+      // Indicador de pico fundamental si hay f0
+      if (peakBinIndex > 0 && peakBinIndex < numBins) {
+        const px = (peakBinIndex / (numBins - 1)) * w;
+        const pNorm = Math.min(1.0, currentBins[peakBinIndex] / (maxVal * 1.15));
+        const py = (h - 16) - (pNorm * (h - 24));
+
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    // SSE Connection
+    let evtSource = null;
+
+    function connectSSE() {
+      evtSource = new EventSource('/api/events');
+
+      evtSource.onopen = () => {
+        statusPill.classList.remove('offline');
+        statusText.textContent = 'CONECTADO';
+      };
+
+      evtSource.onerror = () => {
+        statusPill.classList.add('offline');
+        statusText.textContent = 'RECONECTANDO';
+      };
+
+      evtSource.addEventListener('telemetry', (e) => {
+        try {
+          const raw = JSON.parse(e.data);
+          if (isPaused) return;
+
+          const dataToDisplay = enableSmoothing ? applySmoothing(raw) : raw;
+
+          const now = performance.now();
+          if (now - lastUiTime >= refreshIntervalMs) {
+            lastUiTime = now;
+            updateTelemetry(dataToDisplay);
+          }
+        } catch (err) {}
+      });
+
+      evtSource.addEventListener('spectrum', (e) => {
+        try {
+          if (isPaused) return;
+          const data = JSON.parse(e.data);
+          currentBins = data.bins;
+          renderSpectrum();
+        } catch (err) {}
+      });
+    }
+
+    function updateTelemetry(data) {
+      blockIdEl.textContent = data.block_id;
+
+      if (data.detected) {
+        signalBanner.className = 'banner detected';
+        signalStateText.textContent = 'SEÑAL PERIÓDICA';
+      } else {
+        signalBanner.className = 'banner noise';
+        signalStateText.textContent = 'RUIDO / SIN SEÑAL';
+      }
+
+      f0Val.textContent = data.f0_hz.toFixed(1);
+      magVal.textContent = data.f0_mag_mv;
+      noiseVal.textContent = data.noise_floor_mv;
+      snrVal.textContent = data.snr_db.toFixed(1);
+      thdVal.textContent = data.thd_pct.toFixed(1);
+
+      // Meter de amplitud (escala 0-1500 mV)
+      const magPct = Math.min(100, (data.f0_mag_mv / 1500) * 100);
+      magMeter.style.width = magPct + '%';
+
+      // Offset DC y Vpp
+      const dcEl = document.getElementById('dcVal');
+      const dcVEl = document.getElementById('dcVolt');
+      const dcMEl = document.getElementById('dcMeter');
+      if (dcEl && data.dc_offset_mv !== undefined) {
+        dcEl.textContent = data.dc_offset_mv;
+        dcVEl.textContent = (data.dc_offset_mv / 1000.0).toFixed(2);
+        dcMEl.style.width = Math.min(100, (data.dc_offset_mv / 3300.0) * 100) + '%';
+      }
+
+      const vppEl = document.getElementById('vppVal');
+      const vppVEl = document.getElementById('vppVolt');
+      const vppMEl = document.getElementById('vppMeter');
+      if (vppEl && data.v_pp_mv !== undefined) {
+        vppEl.textContent = data.v_pp_mv;
+        vppVEl.textContent = (data.v_pp_mv / 1000.0).toFixed(2);
+        vppMEl.style.width = Math.min(100, (data.v_pp_mv / 3300.0) * 100) + '%';
+      }
+
+      // Meter y calidad de THD
+      const thd = data.thd_pct;
+      const thdPct = Math.min(100, thd);
+      thdMeter.style.width = thdPct + '%';
+      if (thd < 5.0) {
+        thdMeter.style.background = 'var(--accent-emerald)';
+        thdQuality.textContent = 'Baja distorsión (Excelente)';
+        thdQuality.style.color = 'var(--accent-emerald)';
+      } else if (thd < 20.0) {
+        thdMeter.style.background = 'var(--accent-amber)';
+        thdQuality.textContent = 'Distorsión moderada';
+        thdQuality.style.color = 'var(--accent-amber)';
+      } else {
+        thdMeter.style.background = 'var(--accent-rose)';
+        thdQuality.textContent = 'Alta distorsión armónica';
+        thdQuality.style.color = 'var(--accent-rose)';
+      }
+
+      // Armónicos (1 a 10)
+      const harmCount = data.harmonics ? data.harmonics.length : 0;
+      let maxHarm = 1;
+      let harmTotal = 0;
+      for (let i = 0; i < harmCount; i++) {
+        if (data.harmonics[i] > maxHarm) maxHarm = data.harmonics[i];
+        if (i > 0) harmTotal += data.harmonics[i];
+      }
+      const totalEl = document.getElementById('harmonicsTotal');
+      if (totalEl) totalEl.textContent = `Total armónicos: ${harmTotal} mV`;
+
+      for (let i = 0; i < hEls.length; i++) {
+        if (i < harmCount) {
+          const val = data.harmonics[i];
+          if (hEls[i].val) hEls[i].val.textContent = val;
+          const pct = Math.min(100, (val / maxHarm) * 100);
+          if (hEls[i].bar) hEls[i].bar.style.height = pct + '%';
+        }
+      }
+
+      // Actualizar índice del pico fundamental en el espectro
+      if (data.f0_hz > 0) {
+        const df = (data.n_fft && data.fs_hz) ? (data.fs_hz / data.n_fft) : (12800.0 / (currentBins.length || 1024));
+        peakBinIndex = Math.round(data.f0_hz / df);
+      } else {
+        peakBinIndex = 0;
+      }
+
+      // Renderizar forma de onda reconstruida en el osciloscopio
+      renderOscilloscope(data);
+    }
+
+    function updateNetRateText() {
+      if (netRateEl) {
+        const rateSec = (refreshIntervalMs / 1000).toFixed(1);
+        netRateEl.textContent = `25 Hz UDP | UI: ${rateSec}s`;
+      }
+    }
+
+    // Handlers de los Controles de UI
+    rateButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        rateButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        refreshIntervalMs = parseInt(btn.dataset.rate, 10);
+        updateNetRateText();
+      });
+    });
+
+    btnSmoothing.addEventListener('click', () => {
+      enableSmoothing = !enableSmoothing;
+      if (enableSmoothing) {
+        btnSmoothing.classList.add('active');
+        btnSmoothing.textContent = 'Filtro: ON';
+      } else {
+        btnSmoothing.classList.remove('active');
+        btnSmoothing.textContent = 'Filtro: OFF';
+        smoothed = null;
+      }
+    });
+
+    btnHold.addEventListener('click', () => {
+      isPaused = !isPaused;
+      if (isPaused) {
+        btnHold.classList.add('paused');
+        btnHold.textContent = '▶ Reanudar';
+        if (netRateEl) netRateEl.textContent = 'PAUSADO (HOLD)';
+      } else {
+        btnHold.classList.remove('paused');
+        btnHold.textContent = '⏸ Pausar';
+        lastUiTime = 0; // forzar actualización en el siguiente paquete
+        updateNetRateText();
+      }
+    });
+
+    // Inicializar
+    window.addEventListener('DOMContentLoaded', () => {
+      updateNetRateText();
+      resizeCanvas();
+      resizeScopeCanvas();
+      connectSSE();
+    });
+  </script>
+</body>
+</html>
