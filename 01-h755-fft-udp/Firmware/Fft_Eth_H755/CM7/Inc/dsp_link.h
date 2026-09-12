@@ -98,7 +98,8 @@ typedef struct
   volatile uint32_t dwt_transient_sample;  /**< Muestra del glitch (0..2047) (4 B)   */
   volatile uint32_t dwt_transient_count;   /**< Contador acumulado transitorios (4 B)*/
   volatile uint32_t dwt_d1_crest_x10;      /**< Factor cresta D1 x10 (4 B)          */
-  volatile uint32_t rsv2[52];        /**< Relleno exacto hasta offset 0x200    */
+  volatile uint32_t dwt_entropy_norm_x1000; /**< Entropia normalizada x1000 (0..1000) (4 B) */
+  volatile uint32_t rsv2[51];        /**< Relleno exacto hasta offset 0x200    */
 
   /* --- 0x200: Buffer Ping-Pong (2 x 1024 uint16_t = 4096 bytes) ----------- */
   /* Buffer 0: 0x38000200 - 0x380009FF (2048 bytes)

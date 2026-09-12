@@ -147,15 +147,16 @@ int main(void)
         uint32_t thd_x10 = DSP_LINK->thd_pct_x10;
         int det = (DSP_LINK->flags & DSP_FLAG_SIGNAL_DETECTED) ? 1 : 0;
         uint32_t d4_x10 = DSP_LINK->dwt_energy_pct_x10[3];
+        uint32_t swt_x10 = DSP_LINK->dwt_entropy_norm_x1000 / 10u;
 
-        printf("[DSP] Blk %6lu | %s | f0: %5lu.%1lu Hz | Vpk: %4lu mV | Vdc: %4lu mV | THD: %3lu.%1lu %% | D4_E: %3lu.%1lu %% | Trans: %lu\r\n",
+        printf("[DSP] Blk %6lu | %s | f0: %5lu.%1lu Hz | Vpk: %4lu mV | THD: %3lu.%1lu %% | D4_E: %3lu.%1lu %% | Swt: %2lu.%1lu %% | Trans: %lu\r\n",
                DSP_LINK->block_id,
                det ? "PERIODICO" : "   RUIDO ",
                f0_x10 / 10u, f0_x10 % 10u,
                DSP_LINK->f0_mag_mv,
-               DSP_LINK->dc_offset_mv,
                thd_x10 / 10u, thd_x10 % 10u,
                d4_x10 / 10u, d4_x10 % 10u,
+               swt_x10 / 10u, swt_x10 % 10u,
                DSP_LINK->dwt_transient_count);
       }
     }

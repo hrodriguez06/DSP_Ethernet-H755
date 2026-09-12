@@ -73,9 +73,39 @@ udpSocket.on('message', (msg, rinfo) => {
         const crest_factor = msg.readUInt16LE(offset + 26) / 10.0;
         const transient_detected = (flags & 0x10) !== 0;
 
+        const delta_f = [
+          (fs_hz || 25600) / 4.0,  // D1: 6400 Hz
+          (fs_hz || 25600) / 8.0,  // D2: 3200 Hz
+          (fs_hz || 25600) / 16.0, // D3: 1600 Hz
+          (fs_hz || 25600) / 32.0, // D4: 800 Hz
+          (fs_hz || 25600) / 32.0  // A4: 800 Hz
+        ];
+        const band_lengths = [1024, 512, 256, 128, 128];
+        const energy_density = [];
+        let total_energy = 0;
+        for (let i = 0; i < 5; i++) {
+          const e = (rms_mv[i] * rms_mv[i]) * band_lengths[i];
+          total_energy += e;
+          energy_density.push(Math.round(e / delta_f[i]));
+        }
+
+        let entropy_shannon = 0;
+        if (total_energy > 0) {
+          for (let i = 0; i < 5; i++) {
+            const p = energy_pct[i] / 100.0;
+            if (p > 1e-5) {
+              entropy_shannon -= p * Math.log(p);
+            }
+          }
+        }
+        const entropy_norm = Math.min(1.0, Math.max(0.0, entropy_shannon / Math.log(5)));
+
         wavelet = {
-          energy_pct, // [D1, D2, D3, D4, A4]
-          rms_mv,     // [D1, D2, D3, D4, A4]
+          energy_pct,     // [D1, D2, D3, D4, A4] %
+          rms_mv,         // [D1, D2, D3, D4, A4] mV
+          energy_density, // [D1, D2, D3, D4, A4] mV^2/Hz
+          entropy_shannon: parseFloat(entropy_shannon.toFixed(3)),
+          entropy_norm: parseFloat(entropy_norm.toFixed(3)),
           transient_detected,
           transient_mag_mv,
           transient_sample,

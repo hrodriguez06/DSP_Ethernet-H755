@@ -27,9 +27,12 @@
 typedef struct
 {
   /* Distribución de energía y nivel eficaz por banda */
-  float32_t energy_pct[DWT_NUM_BANDS]; /**< Porcentaje de energia 0.0 - 100.0 % */
-  float32_t rms_mv[DWT_NUM_BANDS];     /**< Amplitud RMS de cada banda en mV    */
-  float32_t total_energy;             /**< Energia total del bloque             */
+  float32_t energy_pct[DWT_NUM_BANDS];     /**< Porcentaje de energia 0.0 - 100.0 % */
+  float32_t rms_mv[DWT_NUM_BANDS];         /**< Amplitud RMS de cada banda en mV    */
+  float32_t energy_density[DWT_NUM_BANDS]; /**< Densidad espectral de energia (mV^2/Hz) */
+  float32_t total_energy;                 /**< Energia total del bloque             */
+  float32_t entropy_shannon;              /**< Entropia de Shannon (0 a ln(5)=1.61) */
+  float32_t entropy_norm;                 /**< Entropia normalizada (0.0 a 1.0)     */
 
   /* Deteccion y localizacion de transitorios / anomalías */
   int       transient_detected;       /**< 1 si se detecto un disturbio en D1   */

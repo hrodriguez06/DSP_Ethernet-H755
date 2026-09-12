@@ -587,6 +587,55 @@
       color: var(--text-main);
     }
 
+    /* Escalograma Wavelet 2D */
+    .scalogram-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+      border-top: 1px solid #1e293b;
+      padding-top: 8px;
+    }
+
+    .scalogram-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: ui-monospace, monospace;
+    }
+
+    .scalogram-title {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .scalogram-sub {
+      font-size: 0.65rem;
+      color: #64748b;
+    }
+
+    .scalogram-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 2px;
+    }
+
+    .color-scale-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .color-gradient {
+      width: 80px;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, #0b1021, #1d4ed8, #06b6d4, #10b981, #f59e0b, #f43f5e, #ffffff);
+    }
+
     /* Control Toolbar */
     .control-bar {
       display: flex;
@@ -898,12 +947,15 @@
         <span class="wavelet-title">Análisis Multirresolución Wavelet (DWT db4)</span>
         <div class="wavelet-sub">Descomposición a 4 niveles ortogonales &bull; Banco de filtros Mallat (Daubechies-4)</div>
       </div>
-      <div class="scope-legend">
-        <span class="legend-item"><span class="dot" style="background:#8b5cf6;"></span> D1</span>
-        <span class="legend-item"><span class="dot" style="background:#3b82f6;"></span> D2</span>
-        <span class="legend-item"><span class="dot" style="background:#06b6d4;"></span> D3</span>
-        <span class="legend-item"><span class="dot" style="background:#10b981;"></span> D4 (f0)</span>
-        <span class="legend-item"><span class="dot" style="background:#f59e0b;"></span> A4 (DC)</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="action-btn active" id="btnWaveletMode" style="font-size:0.68rem; padding:3px 8px;">Modo: % Energía</button>
+        <div class="scope-legend">
+          <span class="legend-item"><span class="dot" style="background:#8b5cf6;"></span> D1</span>
+          <span class="legend-item"><span class="dot" style="background:#3b82f6;"></span> D2</span>
+          <span class="legend-item"><span class="dot" style="background:#06b6d4;"></span> D3</span>
+          <span class="legend-item"><span class="dot" style="background:#10b981;"></span> D4</span>
+          <span class="legend-item"><span class="dot" style="background:#f59e0b;"></span> A4</span>
+        </div>
       </div>
     </div>
 
@@ -951,7 +1003,7 @@
         </div>
       </div>
 
-      <!-- Monitor de Transitorios y Glitches -->
+      <!-- Monitor de Transitorios y Entropía -->
       <div class="transient-card">
         <div class="transient-badge normal" id="transientBadge">
           <div class="dot" style="background: currentColor;"></div>
@@ -975,12 +1027,44 @@
             <span class="t-label">Tiempo en Bloque</span>
             <span class="t-val" id="transientTime">0.00 <small style="font-size:0.7rem; color:var(--text-muted);">ms</small></span>
           </div>
+
+          <!-- Entropía de Shannon Wavelet -->
+          <div class="t-metric-box" style="grid-column: span 2; border-top: 1px solid #1e293b; padding-top: 6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span class="t-label">Entropía Wavelet (Shannon S<sub>WT</sub>)</span>
+              <span class="t-val" id="entropyVal" style="font-size:0.95rem; color:#38bdf8;">0.00 <small style="font-size:0.7rem; color:var(--text-muted);">(0%)</small></span>
+            </div>
+            <div class="meter-bar" style="height:5px; margin-top:3px;">
+              <div class="meter-fill" id="entropyMeter" style="width:0%; background:var(--accent-emerald);"></div>
+            </div>
+            <span id="entropyQuality" style="font-size:0.68rem; color:var(--accent-emerald); font-family:monospace; margin-top:2px;">Señal concentrada (Baja entropía)</span>
+          </div>
         </div>
 
         <div class="card-sub" style="margin-top:0; border-top:1px solid #1e293b; padding-top:4px;">
           <span>Factor Cresta D1: <b id="d1Crest">0.0x</b></span>
           <span>Resolución: 39.06 &mu;s</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Escalograma 2D en Cascada (Wavelet Scalogram Waterfall) -->
+    <div class="scalogram-container">
+      <div class="scalogram-header">
+        <span class="scalogram-title">Escalograma 2D en Cascada (Wavelet Scalogram Waterfall)</span>
+        <span class="scalogram-sub">Evolución temporal de energía espectral multirresolución</span>
+      </div>
+      <div class="canvas-container" id="scalogramBox" style="height: 120px;">
+        <canvas id="scalogramCanvas"></canvas>
+      </div>
+      <div class="scalogram-footer">
+        <span style="color:#64748b; font-size:0.68rem; font-family:monospace;">&larr; Historial temporal (~15s)</span>
+        <div class="color-scale-bar">
+          <span style="color:#64748b; font-size:0.68rem; font-family:monospace;">0%</span>
+          <div class="color-gradient"></div>
+          <span style="color:#64748b; font-size:0.68rem; font-family:monospace;">100%</span>
+        </div>
+        <span style="color:#38bdf8; font-size:0.68rem; font-family:monospace;">AHORA &rarr;</span>
       </div>
     </div>
   </div>
@@ -1069,6 +1153,20 @@
     const d1Crest = document.getElementById('d1Crest');
     let transientResetTimeout = null;
 
+    // Wavelet Energy Spectrum & Scalogram DOM
+    const btnWaveletMode = document.getElementById('btnWaveletMode');
+    const entropyVal = document.getElementById('entropyVal');
+    const entropyMeter = document.getElementById('entropyMeter');
+    const entropyQuality = document.getElementById('entropyQuality');
+    const scalogramCanvas = document.getElementById('scalogramCanvas');
+    const scalogramCtx = scalogramCanvas ? scalogramCanvas.getContext('2d') : null;
+    const scalogramBox = document.getElementById('scalogramBox');
+
+    let waveletDisplayMode = 'pct'; // 'pct' o 'density'
+    let lastWaveletData = null;
+    const MAX_SCALO_COLUMNS = 75; // ~15s de historial a 5 fps
+    const scaloHistory = []; // Historial de porcentajes [D1..A4]
+
     let currentBins = new Array(1024).fill(0);
     let peakBinIndex = 0;
 
@@ -1086,7 +1184,8 @@
           harmonics: [...(raw.harmonics || new Array(10).fill(0))],
           wavelet: raw.wavelet ? {
             energy_pct: [...raw.wavelet.energy_pct],
-            rms_mv: [...raw.wavelet.rms_mv]
+            rms_mv: [...raw.wavelet.rms_mv],
+            energy_density: raw.wavelet.energy_density ? [...raw.wavelet.energy_density] : [0, 0, 0, 0, 0]
           } : null
         };
         return raw;
@@ -1112,14 +1211,20 @@
         if (!smoothed.wavelet) {
           smoothed.wavelet = {
             energy_pct: [...raw.wavelet.energy_pct],
-            rms_mv: [...raw.wavelet.rms_mv]
+            rms_mv: [...raw.wavelet.rms_mv],
+            energy_density: raw.wavelet.energy_density ? [...raw.wavelet.energy_density] : [0, 0, 0, 0, 0]
           };
         } else {
           for (let i = 0; i < 5; i++) {
             const rawP = raw.wavelet.energy_pct[i] || 0;
             const rawR = raw.wavelet.rms_mv[i] || 0;
+            const rawD = (raw.wavelet.energy_density && raw.wavelet.energy_density[i] !== undefined) ? raw.wavelet.energy_density[i] : 0;
             smoothed.wavelet.energy_pct[i] += ALPHA * (rawP - smoothed.wavelet.energy_pct[i]);
             smoothed.wavelet.rms_mv[i] += ALPHA * (rawR - smoothed.wavelet.rms_mv[i]);
+            if (smoothed.wavelet.energy_density) {
+              const curD = smoothed.wavelet.energy_density[i] || 0;
+              smoothed.wavelet.energy_density[i] = curD + ALPHA * (rawD - curD);
+            }
           }
         }
       }
@@ -1137,7 +1242,8 @@
         wavelet: raw.wavelet ? {
           ...raw.wavelet,
           energy_pct: smoothed.wavelet ? smoothed.wavelet.energy_pct : raw.wavelet.energy_pct,
-          rms_mv: smoothed.wavelet ? smoothed.wavelet.rms_mv.map(v => Math.round(v)) : raw.wavelet.rms_mv
+          rms_mv: smoothed.wavelet ? smoothed.wavelet.rms_mv.map(v => Math.round(v)) : raw.wavelet.rms_mv,
+          energy_density: smoothed.wavelet && smoothed.wavelet.energy_density ? smoothed.wavelet.energy_density : raw.wavelet.energy_density
         } : null
       };
     }
@@ -1164,10 +1270,119 @@
       }
     }
 
+    // Ajuste de DPI y tamaño para canvas de Escalograma Wavelet
+    function resizeScaloCanvas() {
+      if (!scalogramCanvas || !scalogramBox || !scalogramCtx) return;
+      const dpr = window.devicePixelRatio || 1;
+      const rect = scalogramBox.getBoundingClientRect();
+      scalogramCanvas.width = rect.width * dpr;
+      scalogramCanvas.height = rect.height * dpr;
+      scalogramCtx.scale(dpr, dpr);
+      renderScalogram();
+    }
+
     window.addEventListener('resize', () => {
       resizeCanvas();
       resizeScopeCanvas();
+      resizeScaloCanvas();
     });
+
+    // Función de mapa de colores térmico/plasma para el escalograma
+    function getScaloColor(pct) {
+      const p = Math.max(0, Math.min(100, pct)) / 100;
+      let r, g, b;
+      if (p < 0.25) {
+        const t = p / 0.25;
+        r = 15 + t * (126 - 15);
+        g = 23 + t * (34 - 23);
+        b = 42 + t * (206 - 42);
+      } else if (p < 0.5) {
+        const t = (p - 0.25) / 0.25;
+        r = 126 + t * (219 - 126);
+        g = 34 + t * (39 - 34);
+        b = 206 + t * (119 - 206);
+      } else if (p < 0.75) {
+        const t = (p - 0.5) / 0.25;
+        r = 219 + t * (234 - 219);
+        g = 39 + t * (88 - 39);
+        b = 119 + t * (12 - 119);
+      } else if (p < 0.9) {
+        const t = (p - 0.75) / 0.15;
+        r = 234 + t * (234 - 234);
+        g = 88 + t * (179 - 88);
+        b = 12 + t * (8 - 12);
+      } else {
+        const t = (p - 0.9) / 0.1;
+        r = 234 + t * (255 - 234);
+        g = 179 + t * (255 - 179);
+        b = 8 + t * (255 - 8);
+      }
+      return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+    }
+
+    // Render del Escalograma 2D en Cascada
+    function renderScalogram() {
+      if (!scalogramCtx || !scalogramBox) return;
+      const rect = scalogramBox.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+
+      scalogramCtx.clearRect(0, 0, w, h);
+
+      // Fondo del escalograma
+      scalogramCtx.fillStyle = '#0b0f19';
+      scalogramCtx.fillRect(0, 0, w, h);
+
+      const labelW = 46;
+      const gridW = w - labelW;
+      const numBands = 5;
+      const rh = h / numBands;
+
+      // Dibujar columnas históricas en cascada
+      const nCols = scaloHistory.length;
+      const colW = gridW / MAX_SCALO_COLUMNS;
+
+      for (let c = 0; c < nCols; c++) {
+        const x = labelW + (MAX_SCALO_COLUMNS - nCols + c) * colW;
+        const entry = scaloHistory[c]; // [D1, D2, D3, D4, A4]
+        for (let b = 0; b < numBands; b++) {
+          const val = (entry && entry[b] !== undefined) ? entry[b] : 0;
+          scalogramCtx.fillStyle = getScaloColor(val);
+          scalogramCtx.fillRect(x, b * rh, colW + 0.6, rh - 0.5);
+        }
+      }
+
+      // Separadores horizontales entre bandas
+      scalogramCtx.strokeStyle = 'rgba(30, 41, 59, 0.8)';
+      scalogramCtx.lineWidth = 1;
+      for (let b = 1; b < numBands; b++) {
+        scalogramCtx.beginPath();
+        scalogramCtx.moveTo(0, b * rh);
+        scalogramCtx.lineTo(w, b * rh);
+        scalogramCtx.stroke();
+      }
+
+      // Separador vertical de etiquetas
+      scalogramCtx.strokeStyle = '#1e293b';
+      scalogramCtx.beginPath();
+      scalogramCtx.moveTo(labelW, 0);
+      scalogramCtx.lineTo(labelW, h);
+      scalogramCtx.stroke();
+
+      // Etiquetas fijas de bandas y frecuencias
+      const bandLabels = ['D1', 'D2', 'D3', 'D4', 'A4'];
+      const bandFreqs = ['12.8k', '6.4k', '3.2k', '1.6k', '800'];
+      scalogramCtx.font = '10px monospace';
+      for (let b = 0; b < numBands; b++) {
+        const y = b * rh + rh * 0.65;
+        scalogramCtx.fillStyle = '#cbd5e1';
+        scalogramCtx.fillText(bandLabels[b], 6, y);
+        scalogramCtx.fillStyle = '#64748b';
+        scalogramCtx.font = '8px monospace';
+        scalogramCtx.fillText(bandFreqs[b], 24, y);
+        scalogramCtx.font = '10px monospace';
+      }
+    }
 
     // Render del Osciloscopio Reconstruido (Síntesis de Fourier)
     function renderOscilloscope(data) {
@@ -1503,40 +1718,101 @@
 
       // Actualización de Métricas Wavelet DWT
       if (data.wavelet) {
-        const w = data.wavelet;
-        for (let i = 0; i < 5; i++) {
-          const pct = (w.energy_pct && w.energy_pct[i] !== undefined) ? w.energy_pct[i] : 0;
-          const rms = (w.rms_mv && w.rms_mv[i] !== undefined) ? w.rms_mv[i] : 0;
+        lastWaveletData = data.wavelet;
+        updateWaveletUI(data.wavelet);
+      }
+    }
+
+    function updateWaveletUI(w) {
+      if (!w) return;
+
+      // 1. Barras de Energía por Banda / Densidad Espectral
+      const isDens = (waveletDisplayMode === 'density');
+      const dens = w.energy_density || [0, 0, 0, 0, 0];
+      const maxDens = Math.max(0.01, ...dens);
+
+      for (let i = 0; i < 5; i++) {
+        const pct = (w.energy_pct && w.energy_pct[i] !== undefined) ? w.energy_pct[i] : 0;
+        const rms = (w.rms_mv && w.rms_mv[i] !== undefined) ? w.rms_mv[i] : 0;
+        const dVal = (dens[i] !== undefined) ? dens[i] : 0;
+
+        if (dwtBands[i].rms) dwtBands[i].rms.textContent = rms + ' mV';
+
+        if (isDens) {
+          if (dwtBands[i].pct) dwtBands[i].pct.textContent = dVal.toFixed(2) + ' mV²/Hz';
+          const wPct = Math.min(100, Math.max(0, (dVal / maxDens) * 100));
+          if (dwtBands[i].bar) dwtBands[i].bar.style.width = wPct + '%';
+        } else {
           if (dwtBands[i].pct) dwtBands[i].pct.textContent = pct.toFixed(1) + '%';
-          if (dwtBands[i].rms) dwtBands[i].rms.textContent = rms + ' mV';
           if (dwtBands[i].bar) dwtBands[i].bar.style.width = Math.min(100, Math.max(0, pct)) + '%';
         }
+      }
 
-        if (transientCount) transientCount.textContent = w.transient_count || 0;
-        if (d1Crest) d1Crest.textContent = (w.crest_factor !== undefined ? w.crest_factor.toFixed(1) : '0.0') + 'x';
+      // 2. Transitorios y anomalías
+      if (transientCount) transientCount.textContent = w.transient_count || 0;
+      if (d1Crest) d1Crest.textContent = (w.crest_factor !== undefined ? w.crest_factor.toFixed(1) : '0.0') + 'x';
 
-        if (w.transient_detected) {
+      if (w.transient_detected) {
+        if (transientBadge) {
+          transientBadge.className = 'transient-badge alert';
+          transientStatusText.textContent = '⚠️ TRANSITORIO DETECTADO';
+        }
+        if (transientMag) transientMag.textContent = w.transient_mag_mv || 0;
+        if (transientSample) transientSample.innerHTML = `#${w.transient_sample || 0} <small style="font-size:0.65rem; color:var(--text-muted);">/ 2048</small>`;
+        if (transientTime) transientTime.innerHTML = `${((w.transient_time_us || 0) / 1000).toFixed(2)} <small style="font-size:0.7rem; color:var(--text-muted);">ms</small>`;
+
+        if (transientResetTimeout) clearTimeout(transientResetTimeout);
+        transientResetTimeout = setTimeout(() => {
           if (transientBadge) {
-            transientBadge.className = 'transient-badge alert';
-            transientStatusText.textContent = '⚠️ TRANSITORIO DETECTADO';
-          }
-          if (transientMag) transientMag.textContent = w.transient_mag_mv || 0;
-          if (transientSample) transientSample.innerHTML = `#${w.transient_sample || 0} <small style="font-size:0.65rem; color:var(--text-muted);">/ 2048</small>`;
-          if (transientTime) transientTime.innerHTML = `${((w.transient_time_us || 0) / 1000).toFixed(2)} <small style="font-size:0.7rem; color:var(--text-muted);">ms</small>`;
-
-          if (transientResetTimeout) clearTimeout(transientResetTimeout);
-          transientResetTimeout = setTimeout(() => {
-            if (transientBadge) {
-              transientBadge.className = 'transient-badge normal';
-              transientStatusText.textContent = 'SISTEMA ESTABLE / SIN ANOMALÍAS';
-            }
-          }, 1500);
-        } else if (!transientResetTimeout) {
-          if (transientBadge && transientBadge.className !== 'transient-badge normal') {
             transientBadge.className = 'transient-badge normal';
             transientStatusText.textContent = 'SISTEMA ESTABLE / SIN ANOMALÍAS';
           }
+        }, 1500);
+      } else if (!transientResetTimeout) {
+        if (transientBadge && transientBadge.className !== 'transient-badge normal') {
+          transientBadge.className = 'transient-badge normal';
+          transientStatusText.textContent = 'SISTEMA ESTABLE / SIN ANOMALÍAS';
         }
+      }
+
+      // 3. Entropía de Shannon Wavelet
+      if (entropyVal) {
+        const sNorm = (w.entropy_norm !== undefined) ? w.entropy_norm : ((w.entropy_shannon || 0) / Math.LN5);
+        const sNormPct = Math.min(100, Math.max(0, sNorm * 100));
+        const sVal = (w.entropy_shannon !== undefined) ? w.entropy_shannon : 0;
+
+        entropyVal.innerHTML = `${sVal.toFixed(2)} <small style="font-size:0.7rem; color:var(--text-muted);">(${sNormPct.toFixed(0)}%)</small>`;
+        if (entropyMeter) {
+          entropyMeter.style.width = `${sNormPct}%`;
+          if (sNormPct < 35) {
+            entropyMeter.style.background = 'var(--accent-emerald)';
+            if (entropyQuality) {
+              entropyQuality.textContent = 'Mono-tono / Concentrada (Baja entropía)';
+              entropyQuality.style.color = 'var(--accent-emerald)';
+            }
+          } else if (sNormPct < 75) {
+            entropyMeter.style.background = 'var(--accent-cyan)';
+            if (entropyQuality) {
+              entropyQuality.textContent = 'Multicomponente armónico (Moderada)';
+              entropyQuality.style.color = 'var(--accent-cyan)';
+            }
+          } else {
+            entropyMeter.style.background = 'var(--accent-rose)';
+            if (entropyQuality) {
+              entropyQuality.textContent = 'Ruido / Transitorio caótico (Alta entropía)';
+              entropyQuality.style.color = 'var(--accent-rose)';
+            }
+          }
+        }
+      }
+
+      // 4. Actualizar Escalograma Cascada 2D
+      if (w.energy_pct) {
+        scaloHistory.push([...w.energy_pct]);
+        if (scaloHistory.length > MAX_SCALO_COLUMNS) {
+          scaloHistory.shift();
+        }
+        renderScalogram();
       }
     }
 
@@ -1583,11 +1859,22 @@
       }
     });
 
+    if (btnWaveletMode) {
+      btnWaveletMode.addEventListener('click', () => {
+        waveletDisplayMode = (waveletDisplayMode === 'pct') ? 'density' : 'pct';
+        btnWaveletMode.textContent = (waveletDisplayMode === 'pct') ? 'Modo: % Energía' : 'Modo: Densidad (mV²/Hz)';
+        if (lastWaveletData) {
+          updateWaveletUI(lastWaveletData);
+        }
+      });
+    }
+
     // Inicializar
     window.addEventListener('DOMContentLoaded', () => {
       updateNetRateText();
       resizeCanvas();
       resizeScopeCanvas();
+      resizeScaloCanvas();
       connectSSE();
     });
   </script>

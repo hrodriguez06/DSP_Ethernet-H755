@@ -156,7 +156,7 @@ void DSP_Wavelet_ProcessBlock(const volatile uint16_t *raw_samples,
     current_len = half_len;
   }
 
-  /* 3. Calculo de Energia Total y Porcentajes por Banda */
+  /* 3. Calculo de Energia Total, Porcentajes, Densidad y Entropia */
   float32_t total_energy = 0.0f;
   for (uint32_t b = 0; b < DWT_NUM_BANDS; b++)
   {
@@ -165,20 +165,42 @@ void DSP_Wavelet_ProcessBlock(const volatile uint16_t *raw_samples,
   }
   out_result->total_energy = total_energy;
 
+  /* Anchos de banda en Hz de cada nivel */
+  float32_t delta_f[DWT_NUM_BANDS];
+  delta_f[0] = (float32_t)fs_hz / 4.0f;  /* D1: 6400 Hz para Fs=25.6 kHz */
+  delta_f[1] = (float32_t)fs_hz / 8.0f;  /* D2: 3200 Hz */
+  delta_f[2] = (float32_t)fs_hz / 16.0f; /* D3: 1600 Hz */
+  delta_f[3] = (float32_t)fs_hz / 32.0f; /* D4: 800 Hz */
+  delta_f[4] = (float32_t)fs_hz / 32.0f; /* A4: 800 Hz */
+
+  float32_t entropy = 0.0f;
   if (total_energy > 1e-4f)
   {
     for (uint32_t b = 0; b < DWT_NUM_BANDS; b++)
     {
-      out_result->energy_pct[b] = (energy_bands[b] / total_energy) * 100.0f;
+      float32_t p = energy_bands[b] / total_energy;
+      out_result->energy_pct[b]     = p * 100.0f;
+      out_result->energy_density[b] = energy_bands[b] / delta_f[b];
+
+      if (p > 1e-6f)
+      {
+        entropy -= p * logf(p);
+      }
     }
   }
   else
   {
     for (uint32_t b = 0; b < DWT_NUM_BANDS; b++)
     {
-      out_result->energy_pct[b] = 0.0f;
+      out_result->energy_pct[b]     = 0.0f;
+      out_result->energy_density[b] = 0.0f;
     }
   }
+
+  out_result->entropy_shannon = entropy;
+  /* Entropia normalizada al maximo teorico de 5 estados: ln(5) = 1.6094379f */
+  out_result->entropy_norm    = entropy / 1.6094379f;
+  if (out_result->entropy_norm > 1.0f) out_result->entropy_norm = 1.0f;
 
   /* 4. Analisis de Transitorios y Anomalías en D1 (6.4 - 12.8 kHz) */
   float32_t sigma_d1 = out_result->rms_mv[DWT_BAND_D1];

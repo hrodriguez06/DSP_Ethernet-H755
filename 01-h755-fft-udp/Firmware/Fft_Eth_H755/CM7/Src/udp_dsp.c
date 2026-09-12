@@ -70,6 +70,7 @@ void UDP_DSP_SendTelemetry(const DSP_AnalysisResult_t *result,
     DSP_LINK->dwt_transient_sample  = dwt_res->transient_sample;
     DSP_LINK->dwt_transient_count   = dwt_res->transient_count;
     DSP_LINK->dwt_d1_crest_x10      = (uint32_t)(dwt_res->d1_crest_factor * 10.0f);
+    DSP_LINK->dwt_entropy_norm_x1000 = (uint32_t)(dwt_res->entropy_norm * 1000.0f);
 
     if (dwt_res->transient_detected)
     {
@@ -216,17 +217,16 @@ static void udp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     uint32_t f0_x10 = DSP_LINK->f0_hz_x10;
     uint32_t thd_x10 = DSP_LINK->thd_pct_x10;
     uint32_t d4_x10 = DSP_LINK->dwt_energy_pct_x10[3];
-    uint32_t a4_x10 = DSP_LINK->dwt_energy_pct_x10[4];
+    uint32_t ent_x10 = DSP_LINK->dwt_entropy_norm_x1000 / 10u;
     snprintf(resp, sizeof(resp),
-             "STATUS: block=%lu f0=%lu.%luHz Vpk=%lumV Vdc=%lumV Vpp=%lumV thd=%lu.%lu%% D4_E=%lu.%lu%% A4_E=%lu.%lu%% trans_cnt=%lu flags=0x%lx\r\n",
+             "STATUS: blk=%lu f0=%lu.%luHz Vpk=%lumV Vpp=%lumV thd=%lu.%lu%% D4_E=%lu.%lu%% S_wt=%lu.%lu%% trans=%lu flags=0x%lx\r\n",
              DSP_LINK->block_id,
              f0_x10 / 10u, f0_x10 % 10u,
              DSP_LINK->f0_mag_mv,
-             DSP_LINK->dc_offset_mv,
              DSP_LINK->v_pp_mv,
              thd_x10 / 10u, thd_x10 % 10u,
              d4_x10 / 10u, d4_x10 % 10u,
-             a4_x10 / 10u, a4_x10 % 10u,
+             ent_x10 / 10u, ent_x10 % 10u,
              DSP_LINK->dwt_transient_count,
              DSP_LINK->flags);
     send_text(addr, port, resp);
