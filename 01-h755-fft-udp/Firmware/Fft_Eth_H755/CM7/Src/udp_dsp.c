@@ -58,19 +58,19 @@ void UDP_DSP_SendTelemetry(const DSP_AnalysisResult_t *result,
                            uint32_t block_id,
                            uint32_t timestamp_ms)
 {
-  /* 1. Publicar métricas Wavelet en SRAM4 para consulta/diagnóstico */
+  /* 1. Publicar métricas Wavelet WPT en SRAM4 para consulta/diagnóstico */
   if (dwt_res != NULL)
   {
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 16; i++)
     {
-      DSP_LINK->dwt_energy_pct_x10[i] = (uint32_t)(dwt_res->energy_pct[i] * 10.0f);
-      DSP_LINK->dwt_rms_mv[i]         = (uint32_t)dwt_res->rms_mv[i];
+      DSP_LINK->wpt_energy_pct_x10[i] = (uint32_t)(dwt_res->energy_pct[i] * 10.0f);
+      DSP_LINK->wpt_rms_mv[i]         = (uint32_t)dwt_res->rms_mv[i];
     }
-    DSP_LINK->dwt_transient_mag_mv  = (uint32_t)dwt_res->transient_mag_mv;
-    DSP_LINK->dwt_transient_sample  = dwt_res->transient_sample;
-    DSP_LINK->dwt_transient_count   = dwt_res->transient_count;
-    DSP_LINK->dwt_d1_crest_x10      = (uint32_t)(dwt_res->d1_crest_factor * 10.0f);
-    DSP_LINK->dwt_entropy_norm_x1000 = (uint32_t)(dwt_res->entropy_norm * 1000.0f);
+    DSP_LINK->wpt_transient_mag_mv   = (uint32_t)dwt_res->transient_mag_mv;
+    DSP_LINK->wpt_transient_sample   = dwt_res->transient_sample;
+    DSP_LINK->wpt_transient_count    = dwt_res->transient_count;
+    DSP_LINK->wpt_crest_x10          = (uint32_t)(dwt_res->crest_factor * 10.0f);
+    DSP_LINK->wpt_entropy_norm_x1000 = (uint32_t)(dwt_res->entropy_norm * 1000.0f);
 
     if (dwt_res->transient_detected)
     {
@@ -105,27 +105,31 @@ void UDP_DSP_SendTelemetry(const DSP_AnalysisResult_t *result,
   pkt.dc_offset_mv = (uint16_t)result->dc_offset_mv;
   pkt.v_pp_mv      = (uint16_t)result->v_pp_mv;
 
-  /* Rellenar extensión Wavelet */
+  /* Rellenar extensión Wavelet Packet WPT (16 sub-bandas uniformes) */
   if (dwt_res != NULL)
   {
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 16; i++)
     {
-      pkt.dwt_energy_pct_x10[i] = (uint16_t)(dwt_res->energy_pct[i] * 10.0f);
-      pkt.dwt_rms_mv[i]         = (uint16_t)dwt_res->rms_mv[i];
+      pkt.wpt_energy_pct_x10[i] = (uint16_t)(dwt_res->energy_pct[i] * 10.0f);
+      pkt.wpt_rms_mv[i]         = (uint16_t)dwt_res->rms_mv[i];
     }
-    pkt.dwt_transient_mag_mv = (uint16_t)dwt_res->transient_mag_mv;
-    pkt.dwt_transient_sample = (uint16_t)dwt_res->transient_sample;
-    pkt.dwt_transient_count  = (uint16_t)dwt_res->transient_count;
-    pkt.dwt_d1_crest_x10     = (uint16_t)(dwt_res->d1_crest_factor * 10.0f);
+    pkt.wpt_transient_mag_mv   = (uint16_t)dwt_res->transient_mag_mv;
+    pkt.wpt_transient_sample   = (uint16_t)dwt_res->transient_sample;
+    pkt.wpt_transient_count    = (uint16_t)dwt_res->transient_count;
+    pkt.wpt_crest_x10          = (uint16_t)(dwt_res->crest_factor * 10.0f);
+    pkt.wpt_entropy_norm_x1000 = (uint16_t)(dwt_res->entropy_norm * 1000.0f);
+    pkt.rsv_pad                = 0;
   }
   else
   {
-    memset(pkt.dwt_energy_pct_x10, 0, sizeof(pkt.dwt_energy_pct_x10));
-    memset(pkt.dwt_rms_mv, 0, sizeof(pkt.dwt_rms_mv));
-    pkt.dwt_transient_mag_mv = 0;
-    pkt.dwt_transient_sample = 0;
-    pkt.dwt_transient_count  = 0;
-    pkt.dwt_d1_crest_x10     = 0;
+    memset(pkt.wpt_energy_pct_x10, 0, sizeof(pkt.wpt_energy_pct_x10));
+    memset(pkt.wpt_rms_mv, 0, sizeof(pkt.wpt_rms_mv));
+    pkt.wpt_transient_mag_mv   = 0;
+    pkt.wpt_transient_sample   = 0;
+    pkt.wpt_transient_count    = 0;
+    pkt.wpt_crest_x10          = 0;
+    pkt.wpt_entropy_norm_x1000 = 0;
+    pkt.rsv_pad                = 0;
   }
 
   send_raw(&s_sub_addr, s_sub_port, &pkt, sizeof(pkt));
@@ -139,8 +143,8 @@ void UDP_DSP_SendFullSpectrum(const float *mag_spectrum, uint32_t block_id)
   struct __attribute__((packed)) {
     uint32_t magic;       /* UDP_DSP_MAGIC_SPECTRUM: 0x53504543 */
     uint32_t block_id;
-    uint16_t part;        /* 0 = bins 0..511, 1 = bins 512..1023 */
-    uint16_t total_bins;  /* 1024 */
+    uint16_t part;        /* Parte del espectro (0..num_parts-1) */
+    uint16_t total_bins;  /* DSP_NUM_BINS (2048) */
     uint16_t bins[512];
   } spec_pkt;
 
@@ -148,25 +152,20 @@ void UDP_DSP_SendFullSpectrum(const float *mag_spectrum, uint32_t block_id)
   spec_pkt.block_id   = block_id;
   spec_pkt.total_bins = DSP_NUM_BINS;
 
-  /* Parte 0: Bins 0 .. 511 (0 a 6.4 kHz) */
-  spec_pkt.part = 0;
-  for (uint32_t k = 0; k < 512; k++)
+  uint16_t num_parts = (DSP_NUM_BINS + 511u) / 512u;
+  for (uint16_t part = 0; part < num_parts; part++)
   {
-    float val = mag_spectrum[k];
-    if (val > 65535.0f) val = 65535.0f;
-    spec_pkt.bins[k] = (uint16_t)val;
+    spec_pkt.part = part;
+    uint32_t offset = (uint32_t)part * 512u;
+    for (uint32_t k = 0; k < 512; k++)
+    {
+      uint32_t idx = offset + k;
+      float val = (idx < DSP_NUM_BINS) ? mag_spectrum[idx] : 0.0f;
+      if (val > 65535.0f) val = 65535.0f;
+      spec_pkt.bins[k] = (uint16_t)val;
+    }
+    send_raw(&s_sub_addr, s_sub_port, &spec_pkt, sizeof(spec_pkt));
   }
-  send_raw(&s_sub_addr, s_sub_port, &spec_pkt, sizeof(spec_pkt));
-
-  /* Parte 1: Bins 512 .. 1023 (6.4 a 12.8 kHz) */
-  spec_pkt.part = 1;
-  for (uint32_t k = 0; k < 512; k++)
-  {
-    float val = mag_spectrum[512 + k];
-    if (val > 65535.0f) val = 65535.0f;
-    spec_pkt.bins[k] = (uint16_t)val;
-  }
-  send_raw(&s_sub_addr, s_sub_port, &spec_pkt, sizeof(spec_pkt));
 }
 
 static void udp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
@@ -198,7 +197,7 @@ static void udp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
   {
     s_sub_addr = *addr;
     s_sub_port = port;
-    send_text(addr, port, "OK: Streaming habilitado a 25 Hz\r\n");
+    send_text(addr, port, "OK: Streaming habilitado a 6.25 Hz (bloque 4096 pts)\r\n");
   }
   else if (strcmp(buf, "STOP") == 0)
   {
@@ -216,18 +215,18 @@ static void udp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     char resp[256];
     uint32_t f0_x10 = DSP_LINK->f0_hz_x10;
     uint32_t thd_x10 = DSP_LINK->thd_pct_x10;
-    uint32_t d4_x10 = DSP_LINK->dwt_energy_pct_x10[3];
-    uint32_t ent_x10 = DSP_LINK->dwt_entropy_norm_x1000 / 10u;
+    uint32_t b1_x10 = DSP_LINK->wpt_energy_pct_x10[1]; /* Banda 1: 800 - 1600 Hz (f0 ~ 1 kHz) */
+    uint32_t ent_x10 = DSP_LINK->wpt_entropy_norm_x1000 / 10u;
     snprintf(resp, sizeof(resp),
-             "STATUS: blk=%lu f0=%lu.%luHz Vpk=%lumV Vpp=%lumV thd=%lu.%lu%% D4_E=%lu.%lu%% S_wt=%lu.%lu%% trans=%lu flags=0x%lx\r\n",
+             "STATUS: blk=%lu f0=%lu.%luHz Vpk=%lumV Vpp=%lumV thd=%lu.%lu%% B1_E=%lu.%lu%% S_wpt=%lu.%lu%% trans=%lu flags=0x%lx\r\n",
              DSP_LINK->block_id,
              f0_x10 / 10u, f0_x10 % 10u,
              DSP_LINK->f0_mag_mv,
              DSP_LINK->v_pp_mv,
              thd_x10 / 10u, thd_x10 % 10u,
-             d4_x10 / 10u, d4_x10 % 10u,
+             b1_x10 / 10u, b1_x10 % 10u,
              ent_x10 / 10u, ent_x10 % 10u,
-             DSP_LINK->dwt_transient_count,
+             DSP_LINK->wpt_transient_count,
              DSP_LINK->flags);
     send_text(addr, port, resp);
   }

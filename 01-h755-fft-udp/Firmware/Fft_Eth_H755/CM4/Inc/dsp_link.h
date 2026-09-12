@@ -30,7 +30,7 @@
 
 #define DSP_FAULT_MAGIC     0xDEADFA11UL   /* Marca de HardFault en M4 */
 
-#define DSP_BLOCK_SIZE      2048u          /* 2048 muestras por bloque (df = 12.5 Hz) */
+#define DSP_BLOCK_SIZE      4096u          /* 4096 muestras por bloque (df = 6.25 Hz) */
 #define DSP_FS_DEFAULT      25600u         /* 25.6 kHz */
 
 #if defined(CORE_CM7)
@@ -38,10 +38,11 @@
 #endif
 
 /* Flags de estado del motor DSP */
-#define DSP_FLAG_RUNNING         (1u << 0)
-#define DSP_FLAG_SIGNAL_DETECTED (1u << 1)
-#define DSP_FLAG_CLIPPING        (1u << 2)
-#define DSP_FLAG_OVERRUN         (1u << 3)
+#define DSP_FLAG_RUNNING            (1u << 0)
+#define DSP_FLAG_SIGNAL_DETECTED    (1u << 1)
+#define DSP_FLAG_CLIPPING           (1u << 2)
+#define DSP_FLAG_OVERRUN            (1u << 3)
+#define DSP_FLAG_TRANSIENT_DETECTED (1u << 4)
 
 typedef struct
 {
@@ -53,7 +54,7 @@ typedef struct
   volatile uint32_t hclk_hz;         /**< 200 MHz                              */
   volatile uint32_t apb1_timer_hz;   /**< Frecuencia de reloj de TIM3          */
   volatile uint32_t fs_hz;           /**< Frecuencia de muestreo (25600 Hz)    */
-  volatile uint32_t block_size;      /**< 1024                                 */
+  volatile uint32_t block_size;      /**< 4096                                 */
   volatile uint32_t rsv0[8];         /**< Relleno hasta 0x040                  */
 
   /* --- 0x040: Mando (CM7 solicita, CM4 acusa) ----------------------------- */
@@ -89,11 +90,20 @@ typedef struct
   volatile uint32_t fault_bfar;
   volatile uint32_t fault_pc;
   volatile uint32_t fault_lr;
-  volatile uint32_t rsv2[66];        /**< Relleno exacto hasta offset 0x200    */
 
-  /* --- 0x200: Buffer Ping-Pong (2 x 1024 uint16_t = 4096 bytes) ----------- */
-  /* Buffer 0: 0x38000200 - 0x380009FF (2048 bytes)
-     Buffer 1: 0x38000A00 - 0x380011FF (2048 bytes) */
+  /* --- 0x0F8: Metricas Wavelet Packet WPT (16 sub-bandas uniformes) -------- */
+  volatile uint32_t wpt_energy_pct_x10[16]; /**< % energia bandas B0..B15 x10 (64 B) */
+  volatile uint32_t wpt_rms_mv[16];         /**< RMS de bandas B0..B15 en mV (64 B)   */
+  volatile uint32_t wpt_transient_mag_mv;   /**< Amplitud pico del glitch en mV (4 B) */
+  volatile uint32_t wpt_transient_sample;   /**< Muestra del glitch (0..4095) (4 B)   */
+  volatile uint32_t wpt_transient_count;    /**< Contador acumulado transitorios (4 B)*/
+  volatile uint32_t wpt_crest_x10;          /**< Factor cresta HF x10 (4 B)          */
+  volatile uint32_t wpt_entropy_norm_x1000; /**< Entropia normalizada x1000 (0..1000) (4 B) */
+  volatile uint32_t rsv2[29];               /**< Relleno exacto hasta offset 0x200 (116 B) */
+
+  /* --- 0x200: Buffer Ping-Pong (2 x 4096 uint16_t = 16384 bytes) ---------- */
+  /* Buffer 0: 0x38000200 - 0x380021FF (8192 bytes)
+     Buffer 1: 0x38002200 - 0x380041FF (8192 bytes) */
   volatile uint16_t raw_buffer[2][DSP_BLOCK_SIZE];
 
 } DSP_Link_t;

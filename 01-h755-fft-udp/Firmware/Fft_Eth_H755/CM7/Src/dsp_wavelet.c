@@ -39,9 +39,17 @@ static const float32_t G_DEC[8] = {
 };
 
 /* Buffers de trabajo estáticos en memoria rápida AXI SRAM */
-static float32_t s_approx_a[DSP_BLOCK_SIZE];     /* 2048 elementos (8 KB) */
-static float32_t s_approx_b[DSP_BLOCK_SIZE / 2]; /* 1024 elementos (4 KB) */
-static float32_t s_detail[DSP_BLOCK_SIZE / 2];   /* 1024 elementos (4 KB) */
+static float32_t s_wpt_buf_a[DSP_BLOCK_SIZE]; /* 4096 floats (16 KB) */
+static float32_t s_wpt_buf_b[DSP_BLOCK_SIZE]; /* 4096 floats (16 KB) */
+
+/* Tabla de permutación Gray-code (Paley) para ordenar los 16 nodos del árbol
+ * en frecuencias estrictamente monótonas:
+ * Banda k -> f_k = [k * 800 Hz, (k + 1) * 800 Hz]
+ */
+static const uint8_t WPT_GRAY_MAP[WPT_NUM_BANDS] = {
+   0,  1,  3,  2,  6,  7,  5,  4,
+  12, 13, 15, 14, 10, 11,  9,  8
+};
 
 /* Contador acumulativo persistente de transitorios detectados */
 static uint32_t s_transient_event_counter = 0;
@@ -61,126 +69,104 @@ void DSP_Wavelet_ProcessBlock(const volatile uint16_t *raw_samples,
   /* Factor de conversión: 16 bits = 65535 LSB -> 3300.0 mV */
   const float32_t lsb_to_mv = 3300.0f / 65535.0f;
 
-  /* 1. Cargar señal eliminando el offset DC a s_approx_a (sin ventaneo Hanning,
-   *    para no distorsionar ni atenuar transitorios en los extremos del bloque) */
+  /* 1. Cargar señal eliminando el offset DC a s_wpt_buf_a */
   for (uint32_t i = 0; i < DSP_BLOCK_SIZE; i++)
   {
-    s_approx_a[i] = ((float32_t)raw_samples[i] - mean_code) * lsb_to_mv;
+    s_wpt_buf_a[i] = ((float32_t)raw_samples[i] - mean_code) * lsb_to_mv;
   }
 
-  float32_t energy_bands[DWT_NUM_BANDS] = {0.0f};
-  uint32_t  band_lengths[DWT_NUM_BANDS] = {1024u, 512u, 256u, 128u, 128u};
+  float32_t *p_in  = s_wpt_buf_a;
+  float32_t *p_out = s_wpt_buf_b;
 
-  float32_t *current_in = s_approx_a;
-  float32_t *next_approx = s_approx_b;
-  uint32_t current_len = DSP_BLOCK_SIZE; /* 2048 */
+  /* Variables para detección de transitorios en Nivel 1 (High-Pass D1: 2048 puntos, 6.4 - 12.8 kHz) */
+  float32_t hf_max_abs = 0.0f;
+  uint32_t  hf_max_idx = 0;
+  float32_t hf_sum_sq  = 0.0f;
 
-  /* Variables para deteccion de transitorios en Nivel 1 (D1) */
-  float32_t d1_max_abs = 0.0f;
-  uint32_t  d1_max_idx = 0;
-
-  /* 2. Descomposicion piramidal de Mallat a 4 niveles */
-  for (uint32_t lvl = 0; lvl < DWT_LEVELS; lvl++)
+  /* 2. Descomposición completa de Paquetes Wavelet (WPT) a 4 niveles */
+  for (uint32_t lvl = 0; lvl < WPT_LEVELS; lvl++)
   {
-    uint32_t half_len = current_len >> 1;
-    uint32_t mask = current_len - 1u; /* Mascara para modulo rapido circular */
+    uint32_t num_nodes  = 1u << lvl;             /* 1, 2, 4, 8 */
+    uint32_t parent_len = DSP_BLOCK_SIZE >> lvl; /* 4096, 2048, 1024, 512 */
+    uint32_t child_len  = parent_len >> 1;       /* 2048, 1024, 512, 256 */
+    uint32_t mask       = parent_len - 1u;
 
-    float32_t sum_sq_detail = 0.0f;
-    float32_t sum_sq_approx = 0.0f;
-
-    for (uint32_t n = 0; n < half_len; n++)
+    for (uint32_t node = 0; node < num_nodes; node++)
     {
-      float32_t sum_a = 0.0f;
-      float32_t sum_d = 0.0f;
-      uint32_t base_idx = 2u * n;
+      const float32_t *node_in = &p_in[node * parent_len];
+      float32_t *node_out_low  = &p_out[(2u * node) * child_len];
+      float32_t *node_out_high = &p_out[(2u * node + 1u) * child_len];
 
-      for (uint32_t k = 0; k < 8; k++)
+      for (uint32_t n = 0; n < child_len; n++)
       {
-        uint32_t idx = (base_idx + k) & mask;
-        float32_t val = current_in[idx];
-        sum_a += H_DEC[k] * val;
-        sum_d += G_DEC[k] * val;
-      }
+        float32_t sum_low = 0.0f;
+        float32_t sum_high = 0.0f;
+        uint32_t base_idx = 2u * n;
 
-      next_approx[n] = sum_a;
-      s_detail[n]    = sum_d;
-
-      sum_sq_detail += (sum_d * sum_d);
-
-      /* Monitoreo especializado en D1 (6.4 - 12.8 kHz) para picos anómalos */
-      if (lvl == 0)
-      {
-        float32_t abs_d = fabsf(sum_d);
-        if (abs_d > d1_max_abs)
+        for (uint32_t k = 0; k < 8; k++)
         {
-          d1_max_abs = abs_d;
-          d1_max_idx = n;
+          uint32_t idx = (base_idx + k) & mask;
+          float32_t val = node_in[idx];
+          sum_low  += H_DEC[k] * val;
+          sum_high += G_DEC[k] * val;
+        }
+
+        node_out_low[n]  = sum_low;
+        node_out_high[n] = sum_high;
+
+        /* En nivel 0 -> calculando nivel 1: node_out_high es la banda HF completa (6.4 - 12.8 kHz) */
+        if (lvl == 0)
+        {
+          float32_t abs_h = fabsf(sum_high);
+          hf_sum_sq += sum_high * sum_high;
+          if (abs_h > hf_max_abs)
+          {
+            hf_max_abs = abs_h;
+            hf_max_idx = n;
+          }
         }
       }
-
-      if (lvl == (DWT_LEVELS - 1u))
-      {
-        sum_sq_approx += (sum_a * sum_a);
-      }
     }
 
-    /* Guardar energia del detalle de este nivel */
-    energy_bands[lvl] = sum_sq_detail;
-
-    /* Si es el ultimo nivel, guardar tambien la energia de aproximacion A4 */
-    if (lvl == (DWT_LEVELS - 1u))
-    {
-      energy_bands[DWT_BAND_A4] = sum_sq_approx;
-    }
-
-    /* Preparar buffers para la siguiente iteración (reutilizar memoria) */
-    if (lvl == 0)
-    {
-      /* Nivel 2 lee de s_approx_b y escribe en s_approx_a */
-      current_in = s_approx_b;
-      next_approx = s_approx_a;
-    }
-    else if (lvl == 1)
-    {
-      /* Nivel 3 lee de s_approx_a y escribe en s_approx_b */
-      current_in = s_approx_a;
-      next_approx = s_approx_b;
-    }
-    else if (lvl == 2)
-    {
-      /* Nivel 4 lee de s_approx_b y escribe en s_approx_a */
-      current_in = s_approx_b;
-      next_approx = s_approx_a;
-    }
-
-    current_len = half_len;
+    /* Alternar buffers de entrada y salida */
+    float32_t *p_tmp = p_in;
+    p_in  = p_out;
+    p_out = p_tmp;
   }
 
-  /* 3. Calculo de Energia Total, Porcentajes, Densidad y Entropia */
+  /* 3. Cálculo de Energía, RMS y Densidad de las 16 Sub-bandas (WPT) */
   float32_t total_energy = 0.0f;
-  for (uint32_t b = 0; b < DWT_NUM_BANDS; b++)
+  float32_t energy_bands[WPT_NUM_BANDS];
+
+  for (uint32_t b = 0; b < WPT_NUM_BANDS; b++)
   {
-    total_energy += energy_bands[b];
-    out_result->rms_mv[b] = sqrtf(energy_bands[b] / (float32_t)band_lengths[b]);
+    uint32_t node_idx = WPT_GRAY_MAP[b];
+    const float32_t *pkt = &p_in[node_idx * WPT_PACKET_LEN];
+
+    float32_t sum_sq = 0.0f;
+    for (uint32_t m = 0; m < WPT_PACKET_LEN; m++)
+    {
+      sum_sq += pkt[m] * pkt[m];
+    }
+
+    energy_bands[b] = sum_sq;
+    total_energy   += sum_sq;
+    out_result->rms_mv[b] = sqrtf(sum_sq / (float32_t)WPT_PACKET_LEN);
   }
+
   out_result->total_energy = total_energy;
 
-  /* Anchos de banda en Hz de cada nivel */
-  float32_t delta_f[DWT_NUM_BANDS];
-  delta_f[0] = (float32_t)fs_hz / 4.0f;  /* D1: 6400 Hz para Fs=25.6 kHz */
-  delta_f[1] = (float32_t)fs_hz / 8.0f;  /* D2: 3200 Hz */
-  delta_f[2] = (float32_t)fs_hz / 16.0f; /* D3: 1600 Hz */
-  delta_f[3] = (float32_t)fs_hz / 32.0f; /* D4: 800 Hz */
-  delta_f[4] = (float32_t)fs_hz / 32.0f; /* A4: 800 Hz */
+  /* Ancho de banda constante: Fs / (2 * 16) = 800 Hz */
+  float32_t df = (float32_t)fs_hz / (2.0f * (float32_t)WPT_NUM_BANDS);
 
   float32_t entropy = 0.0f;
   if (total_energy > 1e-4f)
   {
-    for (uint32_t b = 0; b < DWT_NUM_BANDS; b++)
+    for (uint32_t b = 0; b < WPT_NUM_BANDS; b++)
     {
       float32_t p = energy_bands[b] / total_energy;
       out_result->energy_pct[b]     = p * 100.0f;
-      out_result->energy_density[b] = energy_bands[b] / delta_f[b];
+      out_result->energy_density[b] = energy_bands[b] / df;
 
       if (p > 1e-6f)
       {
@@ -190,7 +176,7 @@ void DSP_Wavelet_ProcessBlock(const volatile uint16_t *raw_samples,
   }
   else
   {
-    for (uint32_t b = 0; b < DWT_NUM_BANDS; b++)
+    for (uint32_t b = 0; b < WPT_NUM_BANDS; b++)
     {
       out_result->energy_pct[b]     = 0.0f;
       out_result->energy_density[b] = 0.0f;
@@ -198,27 +184,23 @@ void DSP_Wavelet_ProcessBlock(const volatile uint16_t *raw_samples,
   }
 
   out_result->entropy_shannon = entropy;
-  /* Entropia normalizada al maximo teorico de 5 estados: ln(5) = 1.6094379f */
-  out_result->entropy_norm    = entropy / 1.6094379f;
+  /* Entropía normalizada al máximo teórico de 16 estados: ln(16) = 4 * ln(2) = 2.7725887f */
+  out_result->entropy_norm = entropy / 2.7725887f;
   if (out_result->entropy_norm > 1.0f) out_result->entropy_norm = 1.0f;
 
-  /* 4. Analisis de Transitorios y Anomalías en D1 (6.4 - 12.8 kHz) */
-  float32_t sigma_d1 = out_result->rms_mv[DWT_BAND_D1];
-  float32_t crest_d1 = (sigma_d1 > 0.01f) ? (d1_max_abs / sigma_d1) : 0.0f;
+  /* 4. Análisis de Transitorios y Anomalías en banda HF (6.4 - 12.8 kHz) */
+  float32_t sigma_hf = sqrtf(hf_sum_sq / 2048.0f);
+  float32_t crest_hf = (sigma_hf > 0.01f) ? (hf_max_abs / sigma_hf) : 0.0f;
 
-  out_result->d1_max_mv       = d1_max_abs;
-  out_result->d1_crest_factor = crest_d1;
+  out_result->hf_max_mv   = hf_max_abs;
+  out_result->crest_factor = crest_hf;
 
-  /* Criterio de disparo de transitorio:
-   * 1. El pico de D1 debe superar 4.5 veces el nivel eficaz de fondo de D1.
-   * 2. El pico absoluto de D1 debe superar 35 mV (filtra ruido termico o LSBs residuales).
-   */
-  if ((crest_d1 > 4.5f) && (d1_max_abs > 35.0f))
+  if ((crest_hf > 4.5f) && (hf_max_abs > 35.0f))
   {
     s_transient_event_counter++;
     out_result->transient_detected = 1;
-    out_result->transient_mag_mv   = d1_max_abs;
-    out_result->transient_sample   = d1_max_idx * 2u;
+    out_result->transient_mag_mv   = hf_max_abs;
+    out_result->transient_sample   = hf_max_idx * 2u;
     out_result->transient_time_us  = (out_result->transient_sample * 1000000u) / fs_hz;
   }
   else

@@ -27,7 +27,7 @@ let lastSpectrum = null;
 let partialSpectrum = { block_id: 0, bins: new Array(1024).fill(0), receivedParts: new Set() };
 
 udpSocket.on('message', (msg, rinfo) => {
-  if (msg.length >= 60 && msg.length <= 128) {
+  if (msg.length >= 60 && msg.length <= 256) {
     const magic = msg.readUInt32LE(0);
     if (magic === UDP_MAGIC_TELEMETRY) {
       const block_id = msg.readUInt32LE(4);
@@ -49,9 +49,61 @@ udpSocket.on('message', (msg, rinfo) => {
       const dc_offset_mv = msg.readUInt16LE(44 + harmCount * 2);
       const v_pp_mv = msg.readUInt16LE(44 + harmCount * 2 + 2);
 
-      // Metricas Wavelet DWT Mallat (si vienen en el paquete >= 96 B)
+      // Metricas Wavelet (WPT 16 bandas si >= 144 B, o DWT 5 bandas si >= 96 B)
       let wavelet = null;
-      if (msg.length >= 96) {
+      if (msg.length >= 144) {
+        const offset = 68;
+        const energy_pct = [];
+        for (let i = 0; i < 16; i++) {
+          energy_pct.push(msg.readUInt16LE(offset + i * 2) / 10.0);
+        }
+        const rms_mv = [];
+        for (let i = 0; i < 16; i++) {
+          rms_mv.push(msg.readUInt16LE(offset + 32 + i * 2));
+        }
+        const transient_mag_mv = msg.readUInt16LE(offset + 64);
+        const transient_sample = msg.readUInt16LE(offset + 66);
+        const transient_count = msg.readUInt16LE(offset + 68);
+        const crest_factor = msg.readUInt16LE(offset + 70) / 10.0;
+        const entropy_norm = msg.readUInt16LE(offset + 72) / 1000.0;
+        const transient_detected = (flags & 0x10) !== 0;
+
+        const delta_f = 800.0; // 800 Hz constantes para las 16 sub-bandas WPT
+        const packet_len = (n_fft || 4096) / 16; // 256 muestras
+        const energy_density = [];
+        let total_energy = 0;
+        for (let i = 0; i < 16; i++) {
+          const e = (rms_mv[i] * rms_mv[i]) * packet_len;
+          total_energy += e;
+          energy_density.push(Math.round(e / delta_f));
+        }
+
+        let entropy_shannon = 0;
+        if (total_energy > 0) {
+          for (let i = 0; i < 16; i++) {
+            const p = energy_pct[i] / 100.0;
+            if (p > 1e-5) {
+              entropy_shannon -= p * Math.log(p);
+            }
+          }
+        }
+
+        wavelet = {
+          mode: 'WPT',
+          num_bands: 16,
+          energy_pct,     // [B0 .. B15] %
+          rms_mv,         // [B0 .. B15] mV
+          energy_density, // [B0 .. B15] mV^2/Hz
+          entropy_shannon: parseFloat(entropy_shannon.toFixed(3)),
+          entropy_norm: parseFloat(entropy_norm.toFixed(3)),
+          transient_detected,
+          transient_mag_mv,
+          transient_sample,
+          transient_time_us: Math.round((transient_sample * 1000000) / (fs_hz || 25600)),
+          transient_count,
+          crest_factor
+        };
+      } else if (msg.length >= 96) {
         const offset = 68;
         const energy_pct = [
           msg.readUInt16LE(offset + 0) / 10.0,
@@ -101,6 +153,8 @@ udpSocket.on('message', (msg, rinfo) => {
         const entropy_norm = Math.min(1.0, Math.max(0.0, entropy_shannon / Math.log(5)));
 
         wavelet = {
+          mode: 'DWT',
+          num_bands: 5,
           energy_pct,     // [D1, D2, D3, D4, A4] %
           rms_mv,         // [D1, D2, D3, D4, A4] mV
           energy_density, // [D1, D2, D3, D4, A4] mV^2/Hz
@@ -154,8 +208,9 @@ udpSocket.on('message', (msg, rinfo) => {
       }
       partialSpectrum.receivedParts.add(part);
 
-      // Si se recibieron ambas partes (o si solo consta de 1)
-      if (partialSpectrum.receivedParts.has(0) && (total_bins <= 512 || partialSpectrum.receivedParts.has(1))) {
+      // Si se recibieron todas las partes necesarias (ej. 2 para 1024 bins, 4 para 2048 bins)
+      const requiredParts = Math.ceil(total_bins / 512);
+      if (partialSpectrum.receivedParts.size >= requiredParts) {
         const payload = {
           type: 'spectrum',
           block_id,
@@ -262,6 +317,12 @@ const server = http.createServer((req, res) => {
   if (req.url === '/api/telemetry') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(lastTelemetry || { status: 'waiting_data' }));
+    return;
+  }
+
+  if (req.url === '/api/spectrum') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(lastSpectrum || { status: 'waiting_data' }));
     return;
   }
 

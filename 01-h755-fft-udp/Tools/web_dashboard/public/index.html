@@ -458,9 +458,15 @@
     }
 
     .wavelet-bands {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 5px;
+    }
+
+    @media (min-width: 600px) {
+      .wavelet-bands {
+        grid-template-columns: 1fr 1fr;
+      }
     }
 
     .wavelet-band-row {
@@ -468,8 +474,8 @@
       flex-direction: column;
       gap: 2px;
       background: #080d1a;
-      padding: 6px 10px;
-      border-radius: 8px;
+      padding: 5px 8px;
+      border-radius: 6px;
       border: 1px solid #1e293b;
     }
 
@@ -478,45 +484,67 @@
       justify-content: space-between;
       align-items: center;
       font-family: ui-monospace, monospace;
-      font-size: 0.72rem;
+      font-size: 0.68rem;
     }
 
     .band-tag {
       font-weight: 700;
-      padding: 1px 6px;
+      padding: 1px 5px;
       border-radius: 4px;
-      font-size: 0.68rem;
+      font-size: 0.64rem;
     }
 
-    .band-d1 { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); }
-    .band-d2 { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
-    .band-d3 { background: rgba(6, 182, 212, 0.2); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4); }
-    .band-d4 { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
-    .band-a4 { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .band-b0 { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .band-b1 { background: rgba(52, 211, 153, 0.2); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, 0.4); }
+    .band-b2 { background: rgba(6, 182, 212, 0.2); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4); }
+    .band-b3 { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+    .band-b4 { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .band-b5 { background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); }
+    .band-b6 { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); }
+    .band-b7 { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+    .band-b8 { background: rgba(192, 132, 252, 0.2); color: #d8b4fe; border: 1px solid rgba(192, 132, 252, 0.4); }
+    .band-b9 { background: rgba(232, 121, 249, 0.2); color: #f0abfc; border: 1px solid rgba(232, 121, 249, 0.4); }
+    .band-b10 { background: rgba(244, 63, 94, 0.2); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); }
+    .band-b11 { background: rgba(251, 113, 133, 0.2); color: #fda4af; border: 1px solid rgba(251, 113, 133, 0.4); }
+    .band-b12 { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.4); }
+    .band-b13 { background: rgba(251, 146, 60, 0.2); color: #fdba74; border: 1px solid rgba(251, 146, 60, 0.4); }
+    .band-b14 { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .band-b15 { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
 
-    .band-freq { color: var(--text-muted); margin-left: 6px; }
-    .band-rms { color: var(--text-main); font-weight: 600; }
-    .band-pct { color: #38bdf8; font-weight: 700; margin-left: 8px; }
+    .fill-b0 { background: #10b981; }
+    .fill-b1 { background: #34d399; }
+    .fill-b2 { background: #06b6d4; }
+    .fill-b3 { background: #38bdf8; }
+    .fill-b4 { background: #3b82f6; }
+    .fill-b5 { background: #6366f1; }
+    .fill-b6 { background: #8b5cf6; }
+    .fill-b7 { background: #a855f7; }
+    .fill-b8 { background: #c084fc; }
+    .fill-b9 { background: #e879f9; }
+    .fill-b10 { background: #f43f5e; }
+    .fill-b11 { background: #fb7185; }
+    .fill-b12 { background: #f97316; }
+    .fill-b13 { background: #fb923c; }
+    .fill-b14 { background: #f59e0b; }
+    .fill-b15 { background: #ef4444; }
+
+    .band-freq { color: var(--text-muted); margin-left: 4px; font-size: 0.64rem; }
+    .band-rms { color: var(--text-main); font-weight: 600; font-size: 0.68rem; }
+    .band-pct { color: #38bdf8; font-weight: 700; margin-left: 6px; font-size: 0.68rem; }
 
     .band-bar-track {
-      height: 6px;
+      height: 4px;
       background: #1e293b;
-      border-radius: 3px;
+      border-radius: 2px;
       overflow: hidden;
-      margin-top: 3px;
+      margin-top: 2px;
     }
 
     .band-bar-fill {
       height: 100%;
-      border-radius: 3px;
+      border-radius: 2px;
       transition: width 0.15s ease-out;
     }
-
-    .fill-d1 { background: linear-gradient(90deg, #8b5cf6, #c084fc); }
-    .fill-d2 { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-    .fill-d3 { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
-    .fill-d4 { background: linear-gradient(90deg, #10b981, #34d399); }
-    .fill-a4 { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
 
     /* Monitor de Transitorios */
     .transient-card {
@@ -940,66 +968,153 @@
     </div>
   </div>
 
-  <!-- Panel de Análisis Multirresolución Wavelet (DWT Mallat db4) -->
+  <!-- Panel de Análisis de Paquetes Wavelet (WPT db4 - 16 Sub-bandas Uniformes) -->
   <div class="wavelet-panel">
     <div class="wavelet-header">
       <div>
-        <span class="wavelet-title">Análisis Multirresolución Wavelet (DWT db4)</span>
-        <div class="wavelet-sub">Descomposición a 4 niveles ortogonales &bull; Banco de filtros Mallat (Daubechies-4)</div>
+        <span class="wavelet-title">Análisis de Paquetes Wavelet (WPT db4 &bull; 16 Sub-bandas Uniformes)</span>
+        <div class="wavelet-sub">Descomposición completa a 4 niveles (&Delta;f = 800 Hz constante) &bull; Ordenamiento espectral Gray/Paley</div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
         <button class="action-btn active" id="btnWaveletMode" style="font-size:0.68rem; padding:3px 8px;">Modo: % Energía</button>
-        <div class="scope-legend">
-          <span class="legend-item"><span class="dot" style="background:#8b5cf6;"></span> D1</span>
-          <span class="legend-item"><span class="dot" style="background:#3b82f6;"></span> D2</span>
-          <span class="legend-item"><span class="dot" style="background:#06b6d4;"></span> D3</span>
-          <span class="legend-item"><span class="dot" style="background:#10b981;"></span> D4</span>
-          <span class="legend-item"><span class="dot" style="background:#f59e0b;"></span> A4</span>
+        <div class="scope-legend" style="font-size:0.65rem;">
+          <span class="legend-item"><span class="dot" style="background:#10b981;"></span> B0..B3 (LF)</span>
+          <span class="legend-item"><span class="dot" style="background:#3b82f6;"></span> B4..B7 (MF1)</span>
+          <span class="legend-item"><span class="dot" style="background:#c084fc;"></span> B8..B11 (MF2)</span>
+          <span class="legend-item"><span class="dot" style="background:#ef4444;"></span> B12..B15 (HF)</span>
         </div>
       </div>
     </div>
 
     <div class="wavelet-grid">
-      <!-- Barras de Energía por Banda -->
+      <!-- 16 Barras de Energía Uniformes en Cuadrícula 2 Columnas -->
       <div class="wavelet-bands">
         <div class="wavelet-band-row">
           <div class="band-meta">
-            <div><span class="band-tag band-d1">D1</span><span class="band-freq">6.4 - 12.8 kHz (HF / Glitches)</span></div>
-            <div><span class="band-rms" id="d1Rms">0 mV</span><span class="band-pct" id="d1Pct">0.0%</span></div>
+            <div><span class="band-tag band-b0">B0</span><span class="band-freq">0.0 - 0.8 kHz (DC / Sub)</span></div>
+            <div><span class="band-rms" id="b0Rms">0 mV</span><span class="band-pct" id="b0Pct">0.0%</span></div>
           </div>
-          <div class="band-bar-track"><div class="band-bar-fill fill-d1" id="d1Bar" style="width: 0%;"></div></div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b0" id="b0Bar" style="width: 0%;"></div></div>
         </div>
 
         <div class="wavelet-band-row">
           <div class="band-meta">
-            <div><span class="band-tag band-d2">D2</span><span class="band-freq">3.2 - 6.4 kHz (Armónicos H4-H6)</span></div>
-            <div><span class="band-rms" id="d2Rms">0 mV</span><span class="band-pct" id="d2Pct">0.0%</span></div>
+            <div><span class="band-tag band-b1">B1</span><span class="band-freq">0.8 - 1.6 kHz (f0 Fund.)</span></div>
+            <div><span class="band-rms" id="b1Rms">0 mV</span><span class="band-pct" id="b1Pct">0.0%</span></div>
           </div>
-          <div class="band-bar-track"><div class="band-bar-fill fill-d2" id="d2Bar" style="width: 0%;"></div></div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b1" id="b1Bar" style="width: 0%;"></div></div>
         </div>
 
         <div class="wavelet-band-row">
           <div class="band-meta">
-            <div><span class="band-tag band-d3">D3</span><span class="band-freq">1.6 - 3.2 kHz (Armónicos H2-H3)</span></div>
-            <div><span class="band-rms" id="d3Rms">0 mV</span><span class="band-pct" id="d3Pct">0.0%</span></div>
+            <div><span class="band-tag band-b2">B2</span><span class="band-freq">1.6 - 2.4 kHz (H2 Arm.)</span></div>
+            <div><span class="band-rms" id="b2Rms">0 mV</span><span class="band-pct" id="b2Pct">0.0%</span></div>
           </div>
-          <div class="band-bar-track"><div class="band-bar-fill fill-d3" id="d3Bar" style="width: 0%;"></div></div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b2" id="b2Bar" style="width: 0%;"></div></div>
         </div>
 
         <div class="wavelet-band-row">
           <div class="band-meta">
-            <div><span class="band-tag band-d4">D4</span><span class="band-freq">800 Hz - 1.6 kHz (Fundamental f0)</span></div>
-            <div><span class="band-rms" id="d4Rms">0 mV</span><span class="band-pct" id="d4Pct">0.0%</span></div>
+            <div><span class="band-tag band-b3">B3</span><span class="band-freq">2.4 - 3.2 kHz (H3 Arm.)</span></div>
+            <div><span class="band-rms" id="b3Rms">0 mV</span><span class="band-pct" id="b3Pct">0.0%</span></div>
           </div>
-          <div class="band-bar-track"><div class="band-bar-fill fill-d4" id="d4Bar" style="width: 0%;"></div></div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b3" id="b3Bar" style="width: 0%;"></div></div>
         </div>
 
         <div class="wavelet-band-row">
           <div class="band-meta">
-            <div><span class="band-tag band-a4">A4</span><span class="band-freq">0 - 800 Hz (Continua / Subarmónicos)</span></div>
-            <div><span class="band-rms" id="a4Rms">0 mV</span><span class="band-pct" id="a4Pct">0.0%</span></div>
+            <div><span class="band-tag band-b4">B4</span><span class="band-freq">3.2 - 4.0 kHz (H4 Arm.)</span></div>
+            <div><span class="band-rms" id="b4Rms">0 mV</span><span class="band-pct" id="b4Pct">0.0%</span></div>
           </div>
-          <div class="band-bar-track"><div class="band-bar-fill fill-a4" id="a4Bar" style="width: 0%;"></div></div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b4" id="b4Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b5">B5</span><span class="band-freq">4.0 - 4.8 kHz (H5 Arm.)</span></div>
+            <div><span class="band-rms" id="b5Rms">0 mV</span><span class="band-pct" id="b5Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b5" id="b5Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b6">B6</span><span class="band-freq">4.8 - 5.6 kHz (H6-H7)</span></div>
+            <div><span class="band-rms" id="b6Rms">0 mV</span><span class="band-pct" id="b6Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b6" id="b6Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b7">B7</span><span class="band-freq">5.6 - 6.4 kHz (H7-H8)</span></div>
+            <div><span class="band-rms" id="b7Rms">0 mV</span><span class="band-pct" id="b7Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b7" id="b7Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b8">B8</span><span class="band-freq">6.4 - 7.2 kHz (H8-H9)</span></div>
+            <div><span class="band-rms" id="b8Rms">0 mV</span><span class="band-pct" id="b8Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b8" id="b8Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b9">B9</span><span class="band-freq">7.2 - 8.0 kHz (H9-H10)</span></div>
+            <div><span class="band-rms" id="b9Rms">0 mV</span><span class="band-pct" id="b9Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b9" id="b9Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b10">B10</span><span class="band-freq">8.0 - 8.8 kHz</span></div>
+            <div><span class="band-rms" id="b10Rms">0 mV</span><span class="band-pct" id="b10Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b10" id="b10Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b11">B11</span><span class="band-freq">8.8 - 9.6 kHz</span></div>
+            <div><span class="band-rms" id="b11Rms">0 mV</span><span class="band-pct" id="b11Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b11" id="b11Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b12">B12</span><span class="band-freq">9.6 - 10.4 kHz</span></div>
+            <div><span class="band-rms" id="b12Rms">0 mV</span><span class="band-pct" id="b12Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b12" id="b12Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b13">B13</span><span class="band-freq">10.4 - 11.2 kHz</span></div>
+            <div><span class="band-rms" id="b13Rms">0 mV</span><span class="band-pct" id="b13Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b13" id="b13Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b14">B14</span><span class="band-freq">11.2 - 12.0 kHz</span></div>
+            <div><span class="band-rms" id="b14Rms">0 mV</span><span class="band-pct" id="b14Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b14" id="b14Bar" style="width: 0%;"></div></div>
+        </div>
+
+        <div class="wavelet-band-row">
+          <div class="band-meta">
+            <div><span class="band-tag band-b15">B15</span><span class="band-freq">12.0 - 12.8 kHz (HF / Glitch)</span></div>
+            <div><span class="band-rms" id="b15Rms">0 mV</span><span class="band-pct" id="b15Pct">0.0%</span></div>
+          </div>
+          <div class="band-bar-track"><div class="band-bar-fill fill-b15" id="b15Bar" style="width: 0%;"></div></div>
         </div>
       </div>
 
@@ -1021,7 +1136,7 @@
           </div>
           <div class="t-metric-box">
             <span class="t-label">Ubicación Muestra</span>
-            <span class="t-val" id="transientSample">#0 <small style="font-size:0.65rem; color:var(--text-muted);">/ 2048</small></span>
+            <span class="t-val" id="transientSample">#0 <small style="font-size:0.65rem; color:var(--text-muted);">/ 4096</small></span>
           </div>
           <div class="t-metric-box">
             <span class="t-label">Tiempo en Bloque</span>
@@ -1031,7 +1146,7 @@
           <!-- Entropía de Shannon Wavelet -->
           <div class="t-metric-box" style="grid-column: span 2; border-top: 1px solid #1e293b; padding-top: 6px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span class="t-label">Entropía Wavelet (Shannon S<sub>WT</sub>)</span>
+              <span class="t-label">Entropía Wavelet (Shannon S<sub>WPT</sub>)</span>
               <span class="t-val" id="entropyVal" style="font-size:0.95rem; color:#38bdf8;">0.00 <small style="font-size:0.7rem; color:var(--text-muted);">(0%)</small></span>
             </div>
             <div class="meter-bar" style="height:5px; margin-top:3px;">
@@ -1042,8 +1157,8 @@
         </div>
 
         <div class="card-sub" style="margin-top:0; border-top:1px solid #1e293b; padding-top:4px;">
-          <span>Factor Cresta D1: <b id="d1Crest">0.0x</b></span>
-          <span>Resolución: 39.06 &mu;s</span>
+          <span>Factor Cresta HF: <b id="d1Crest">0.0x</b></span>
+          <span>Resolución: 39.06 &mu;s &bull; 160 ms</span>
         </div>
       </div>
     </div>
@@ -1051,10 +1166,10 @@
     <!-- Escalograma 2D en Cascada (Wavelet Scalogram Waterfall) -->
     <div class="scalogram-container">
       <div class="scalogram-header">
-        <span class="scalogram-title">Escalograma 2D en Cascada (Wavelet Scalogram Waterfall)</span>
-        <span class="scalogram-sub">Evolución temporal de energía espectral multirresolución</span>
+        <span class="scalogram-title">Escalograma 2D en Cascada (WPT Scalogram Waterfall &bull; 16 Bandas)</span>
+        <span class="scalogram-sub">Evolución temporal de energía espectral uniforme (&Delta;f = 800 Hz)</span>
       </div>
-      <div class="canvas-container" id="scalogramBox" style="height: 120px;">
+      <div class="canvas-container" id="scalogramBox" style="height: 180px;">
         <canvas id="scalogramCanvas"></canvas>
       </div>
       <div class="scalogram-footer">
@@ -1069,10 +1184,10 @@
     </div>
   </div>
 
-  <!-- Espectro FFT Completo (1024 Bins) -->
+  <!-- Espectro FFT Completo (2048 Bins) -->
   <div class="spectrum-panel">
     <div class="spectrum-header">
-      <span class="spectrum-title" id="specTitle">Espectro de Magnitud FFT (1024 Bins: 0 .. 12.8 kHz)</span>
+      <span class="spectrum-title" id="specTitle">Espectro de Magnitud FFT (2048 Bins: 0 .. 12.8 kHz &bull; &Delta;f = 6.25 Hz)</span>
       <span class="spectrum-info" id="specPeakInfo">Max: 0 mV</span>
     </div>
     <div class="canvas-container" id="canvasBox">
@@ -1082,7 +1197,7 @@
 
   <footer>
     <span>NUCLEO-H755ZI-Q</span>
-    <span id="netRate">25 Hz UDP</span>
+    <span id="netRate">6.25 Hz UDP</span>
     <span>CM4 + CM7 Dual-Core</span>
   </footer>
 
@@ -1136,14 +1251,15 @@
     const scopeVppVal = document.getElementById('scopeVppVal');
     let lastWaveformData = null;
 
-    // Wavelet DOM
-    const dwtBands = [
-      { rms: document.getElementById('d1Rms'), pct: document.getElementById('d1Pct'), bar: document.getElementById('d1Bar') },
-      { rms: document.getElementById('d2Rms'), pct: document.getElementById('d2Pct'), bar: document.getElementById('d2Bar') },
-      { rms: document.getElementById('d3Rms'), pct: document.getElementById('d3Pct'), bar: document.getElementById('d3Bar') },
-      { rms: document.getElementById('d4Rms'), pct: document.getElementById('d4Pct'), bar: document.getElementById('d4Bar') },
-      { rms: document.getElementById('a4Rms'), pct: document.getElementById('a4Pct'), bar: document.getElementById('a4Bar') }
-    ];
+    // Wavelet DOM (16 bandas WPT B0..B15)
+    const wptBands = [];
+    for (let i = 0; i < 16; i++) {
+      wptBands.push({
+        rms: document.getElementById(`b${i}Rms`),
+        pct: document.getElementById(`b${i}Pct`),
+        bar: document.getElementById(`b${i}Bar`)
+      });
+    }
     const transientBadge = document.getElementById('transientBadge');
     const transientStatusText = document.getElementById('transientStatusText');
     const transientCount = document.getElementById('transientCount');
@@ -1165,14 +1281,15 @@
     let waveletDisplayMode = 'pct'; // 'pct' o 'density'
     let lastWaveletData = null;
     const MAX_SCALO_COLUMNS = 75; // ~15s de historial a 5 fps
-    const scaloHistory = []; // Historial de porcentajes [D1..A4]
+    const scaloHistory = []; // Historial de porcentajes [B0..B15]
 
-    let currentBins = new Array(1024).fill(0);
+    let currentBins = new Array(2048).fill(0);
     let peakBinIndex = 0;
 
     // Filtro de Media Móvil Exponencial (EMA)
     function applySmoothing(raw) {
       if (!smoothed) {
+        const nBands = (raw.wavelet && raw.wavelet.energy_pct) ? raw.wavelet.energy_pct.length : 16;
         smoothed = {
           f0_hz: raw.f0_hz,
           f0_mag_mv: raw.f0_mag_mv,
@@ -1185,7 +1302,7 @@
           wavelet: raw.wavelet ? {
             energy_pct: [...raw.wavelet.energy_pct],
             rms_mv: [...raw.wavelet.rms_mv],
-            energy_density: raw.wavelet.energy_density ? [...raw.wavelet.energy_density] : [0, 0, 0, 0, 0]
+            energy_density: raw.wavelet.energy_density ? [...raw.wavelet.energy_density] : new Array(nBands).fill(0)
           } : null
         };
         return raw;
@@ -1208,14 +1325,15 @@
       }
 
       if (raw.wavelet) {
-        if (!smoothed.wavelet) {
+        const nBands = raw.wavelet.num_bands || (raw.wavelet.energy_pct ? raw.wavelet.energy_pct.length : 16);
+        if (!smoothed.wavelet || !smoothed.wavelet.energy_pct || smoothed.wavelet.energy_pct.length !== nBands) {
           smoothed.wavelet = {
             energy_pct: [...raw.wavelet.energy_pct],
             rms_mv: [...raw.wavelet.rms_mv],
-            energy_density: raw.wavelet.energy_density ? [...raw.wavelet.energy_density] : [0, 0, 0, 0, 0]
+            energy_density: raw.wavelet.energy_density ? [...raw.wavelet.energy_density] : new Array(nBands).fill(0)
           };
         } else {
-          for (let i = 0; i < 5; i++) {
+          for (let i = 0; i < nBands; i++) {
             const rawP = raw.wavelet.energy_pct[i] || 0;
             const rawR = raw.wavelet.rms_mv[i] || 0;
             const rawD = (raw.wavelet.energy_density && raw.wavelet.energy_density[i] !== undefined) ? raw.wavelet.energy_density[i] : 0;
@@ -1320,7 +1438,7 @@
       return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
     }
 
-    // Render del Escalograma 2D en Cascada
+    // Render del Escalograma 2D en Cascada (16 Bandas Uniformes WPT)
     function renderScalogram() {
       if (!scalogramCtx || !scalogramBox) return;
       const rect = scalogramBox.getBoundingClientRect();
@@ -1335,7 +1453,7 @@
 
       const labelW = 46;
       const gridW = w - labelW;
-      const numBands = 5;
+      const numBands = 16;
       const rh = h / numBands;
 
       // Dibujar columnas históricas en cascada
@@ -1344,16 +1462,18 @@
 
       for (let c = 0; c < nCols; c++) {
         const x = labelW + (MAX_SCALO_COLUMNS - nCols + c) * colW;
-        const entry = scaloHistory[c]; // [D1, D2, D3, D4, A4]
+        const entry = scaloHistory[c]; // [B0 .. B15]
         for (let b = 0; b < numBands; b++) {
-          const val = (entry && entry[b] !== undefined) ? entry[b] : 0;
+          // Invertir verticalmente: fila 0 (arriba) = B15 (12.8 kHz), fila 15 (abajo) = B0 (0 Hz)
+          const bandIdx = (numBands - 1) - b;
+          const val = (entry && entry[bandIdx] !== undefined) ? entry[bandIdx] : 0;
           scalogramCtx.fillStyle = getScaloColor(val);
           scalogramCtx.fillRect(x, b * rh, colW + 0.6, rh - 0.5);
         }
       }
 
       // Separadores horizontales entre bandas
-      scalogramCtx.strokeStyle = 'rgba(30, 41, 59, 0.8)';
+      scalogramCtx.strokeStyle = 'rgba(30, 41, 59, 0.6)';
       scalogramCtx.lineWidth = 1;
       for (let b = 1; b < numBands; b++) {
         scalogramCtx.beginPath();
@@ -1369,18 +1489,18 @@
       scalogramCtx.lineTo(labelW, h);
       scalogramCtx.stroke();
 
-      // Etiquetas fijas de bandas y frecuencias
-      const bandLabels = ['D1', 'D2', 'D3', 'D4', 'A4'];
-      const bandFreqs = ['12.8k', '6.4k', '3.2k', '1.6k', '800'];
-      scalogramCtx.font = '10px monospace';
+      // Etiquetas fijas de bandas y frecuencias (B15 arriba a B0 abajo)
+      scalogramCtx.font = '9px monospace';
       for (let b = 0; b < numBands; b++) {
-        const y = b * rh + rh * 0.65;
+        const bandIdx = (numBands - 1) - b;
+        const y = b * rh + rh * 0.75;
         scalogramCtx.fillStyle = '#cbd5e1';
-        scalogramCtx.fillText(bandLabels[b], 6, y);
+        scalogramCtx.fillText(`B${bandIdx}`, 4, y);
         scalogramCtx.fillStyle = '#64748b';
-        scalogramCtx.font = '8px monospace';
-        scalogramCtx.fillText(bandFreqs[b], 24, y);
-        scalogramCtx.font = '10px monospace';
+        scalogramCtx.font = '7.5px monospace';
+        const freqKhz = ((bandIdx + 1) * 0.8).toFixed(1) + 'k';
+        scalogramCtx.fillText(freqKhz, 23, y);
+        scalogramCtx.font = '9px monospace';
       }
     }
 
@@ -1726,25 +1846,28 @@
     function updateWaveletUI(w) {
       if (!w) return;
 
-      // 1. Barras de Energía por Banda / Densidad Espectral
+      const numBands = w.num_bands || (w.energy_pct ? w.energy_pct.length : 16);
       const isDens = (waveletDisplayMode === 'density');
-      const dens = w.energy_density || [0, 0, 0, 0, 0];
+      const dens = w.energy_density || new Array(numBands).fill(0);
       const maxDens = Math.max(0.01, ...dens);
 
-      for (let i = 0; i < 5; i++) {
-        const pct = (w.energy_pct && w.energy_pct[i] !== undefined) ? w.energy_pct[i] : 0;
-        const rms = (w.rms_mv && w.rms_mv[i] !== undefined) ? w.rms_mv[i] : 0;
-        const dVal = (dens[i] !== undefined) ? dens[i] : 0;
+      for (let i = 0; i < 16; i++) {
+        if (!wptBands[i]) continue;
+        if (i < numBands) {
+          const pct = (w.energy_pct && w.energy_pct[i] !== undefined) ? w.energy_pct[i] : 0;
+          const rms = (w.rms_mv && w.rms_mv[i] !== undefined) ? w.rms_mv[i] : 0;
+          const dVal = (dens[i] !== undefined) ? dens[i] : 0;
 
-        if (dwtBands[i].rms) dwtBands[i].rms.textContent = rms + ' mV';
+          if (wptBands[i].rms) wptBands[i].rms.textContent = rms + ' mV';
 
-        if (isDens) {
-          if (dwtBands[i].pct) dwtBands[i].pct.textContent = dVal.toFixed(2) + ' mV²/Hz';
-          const wPct = Math.min(100, Math.max(0, (dVal / maxDens) * 100));
-          if (dwtBands[i].bar) dwtBands[i].bar.style.width = wPct + '%';
-        } else {
-          if (dwtBands[i].pct) dwtBands[i].pct.textContent = pct.toFixed(1) + '%';
-          if (dwtBands[i].bar) dwtBands[i].bar.style.width = Math.min(100, Math.max(0, pct)) + '%';
+          if (isDens) {
+            if (wptBands[i].pct) wptBands[i].pct.textContent = dVal.toFixed(1) + ' mV²/Hz';
+            const wPct = Math.min(100, Math.max(0, (dVal / maxDens) * 100));
+            if (wptBands[i].bar) wptBands[i].bar.style.width = wPct + '%';
+          } else {
+            if (wptBands[i].pct) wptBands[i].pct.textContent = pct.toFixed(1) + '%';
+            if (wptBands[i].bar) wptBands[i].bar.style.width = Math.min(100, Math.max(0, pct)) + '%';
+          }
         }
       }
 
@@ -1758,7 +1881,7 @@
           transientStatusText.textContent = '⚠️ TRANSITORIO DETECTADO';
         }
         if (transientMag) transientMag.textContent = w.transient_mag_mv || 0;
-        if (transientSample) transientSample.innerHTML = `#${w.transient_sample || 0} <small style="font-size:0.65rem; color:var(--text-muted);">/ 2048</small>`;
+        if (transientSample) transientSample.innerHTML = `#${w.transient_sample || 0} <small style="font-size:0.65rem; color:var(--text-muted);">/ 4096</small>`;
         if (transientTime) transientTime.innerHTML = `${((w.transient_time_us || 0) / 1000).toFixed(2)} <small style="font-size:0.7rem; color:var(--text-muted);">ms</small>`;
 
         if (transientResetTimeout) clearTimeout(transientResetTimeout);
@@ -1775,9 +1898,9 @@
         }
       }
 
-      // 3. Entropía de Shannon Wavelet
+      // 3. Entropía de Shannon Wavelet (normalizada a ln(16))
       if (entropyVal) {
-        const sNorm = (w.entropy_norm !== undefined) ? w.entropy_norm : ((w.entropy_shannon || 0) / Math.LN5);
+        const sNorm = (w.entropy_norm !== undefined) ? w.entropy_norm : ((w.entropy_shannon || 0) / Math.log(16));
         const sNormPct = Math.min(100, Math.max(0, sNorm * 100));
         const sVal = (w.entropy_shannon !== undefined) ? w.entropy_shannon : 0;
 
@@ -1819,7 +1942,7 @@
     function updateNetRateText() {
       if (netRateEl) {
         const rateSec = (refreshIntervalMs / 1000).toFixed(1);
-        netRateEl.textContent = `25 Hz UDP | UI: ${rateSec}s`;
+        netRateEl.textContent = `6.25 Hz UDP | UI: ${rateSec}s`;
       }
     }
 

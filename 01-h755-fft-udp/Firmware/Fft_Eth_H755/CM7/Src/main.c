@@ -82,10 +82,10 @@ int main(void)
   printf("[IPC] Parametros: fs=%lu Hz, N=%lu, VREFINT_CAL=%lu\r\n",
          DSP_LINK->fs_hz, DSP_LINK->block_size, DSP_LINK->vrefint_cal);
 
-  /* 6. Inicializar motor CMSIS-DSP y DWT Wavelet */
-  printf("[DSP] Inicializando motor CMSIS-DSP (Blackman-Harris 4T + RFFT-2048)...\r\n");
+  /* 6. Inicializar motor CMSIS-DSP y WPT Wavelet */
+  printf("[DSP] Inicializando motor CMSIS-DSP (Blackman-Harris 4T + RFFT-4096)...\r\n");
   DSP_Engine_Init();
-  printf("[DSP] Inicializando motor Wavelet DWT Mallat (Daubechies-4, 4 niveles)...\r\n");
+  printf("[DSP] Inicializando motor Wavelet Packet WPT (Daubechies-4, 16 sub-bandas)...\r\n");
   DSP_Wavelet_Init();
   printf("[DSP] Motores listos.\r\n");
 
@@ -111,14 +111,35 @@ int main(void)
       last_processed_block = current_block;
       uint32_t ready_idx = DSP_LINK->ready_idx;
 
-      /* 1. Procesar bloque con CMSIS-DSP (toma ~60 us en M7 a 400 MHz) */
+      /* 1. Procesar bloque con CMSIS-DSP (toma ~120 us en M7 a 400 MHz para 4096 pts) */
       DSP_AnalysisResult_t res;
       DSP_Engine_ProcessBlock(DSP_LINK->raw_buffer[ready_idx], DSP_LINK->fs_hz, &res);
 
-      /* 2. Procesar bloque con DWT Wavelet Mallat db4 (toma ~70 us en M7 a 400 MHz) */
+      /* 2. Procesar bloque con WPT Wavelet db4 (16 sub-bandas uniformes) */
       DSP_WaveletResult_t dwt_res;
       float32_t mean_code = (res.dc_offset_mv * 65535.0f) / 3300.0f;
       DSP_Wavelet_ProcessBlock(DSP_LINK->raw_buffer[ready_idx], DSP_LINK->fs_hz, mean_code, &dwt_res);
+
+      /* Copiar metricas WPT a DSP_LINK para consulta IPC */
+      for (int i = 0; i < 16; i++)
+      {
+        DSP_LINK->wpt_energy_pct_x10[i] = (uint32_t)(dwt_res.energy_pct[i] * 10.0f);
+        DSP_LINK->wpt_rms_mv[i]         = (uint32_t)dwt_res.rms_mv[i];
+      }
+      DSP_LINK->wpt_transient_mag_mv   = (uint32_t)dwt_res.transient_mag_mv;
+      DSP_LINK->wpt_transient_sample   = dwt_res.transient_sample;
+      DSP_LINK->wpt_transient_count    = dwt_res.transient_count;
+      DSP_LINK->wpt_crest_x10          = (uint32_t)(dwt_res.crest_factor * 10.0f);
+      DSP_LINK->wpt_entropy_norm_x1000 = (uint32_t)(dwt_res.entropy_norm * 1000.0f);
+      if (dwt_res.transient_detected)
+      {
+        DSP_LINK->flags |= DSP_FLAG_TRANSIENT_DETECTED;
+      }
+      else
+      {
+        DSP_LINK->flags &= ~DSP_FLAG_TRANSIENT_DETECTED;
+      }
+      __DSB();
 
       /* 3. Si hay un cliente UDP escuchando, transmitir paquete de telemetria combinado */
       if (UDP_DSP_HasSubscribers())
@@ -146,18 +167,18 @@ int main(void)
         uint32_t f0_x10 = DSP_LINK->f0_hz_x10;
         uint32_t thd_x10 = DSP_LINK->thd_pct_x10;
         int det = (DSP_LINK->flags & DSP_FLAG_SIGNAL_DETECTED) ? 1 : 0;
-        uint32_t d4_x10 = DSP_LINK->dwt_energy_pct_x10[3];
-        uint32_t swt_x10 = DSP_LINK->dwt_entropy_norm_x1000 / 10u;
+        uint32_t b1_x10 = DSP_LINK->wpt_energy_pct_x10[1];
+        uint32_t swpt_x10 = DSP_LINK->wpt_entropy_norm_x1000 / 10u;
 
-        printf("[DSP] Blk %6lu | %s | f0: %5lu.%1lu Hz | Vpk: %4lu mV | THD: %3lu.%1lu %% | D4_E: %3lu.%1lu %% | Swt: %2lu.%1lu %% | Trans: %lu\r\n",
+        printf("[DSP] Blk %6lu | %s | f0: %5lu.%1lu Hz | Vpk: %4lu mV | THD: %3lu.%1lu %% | B1_E: %3lu.%1lu %% | Swpt: %2lu.%1lu %% | Trans: %lu\r\n",
                DSP_LINK->block_id,
                det ? "PERIODICO" : "   RUIDO ",
                f0_x10 / 10u, f0_x10 % 10u,
                DSP_LINK->f0_mag_mv,
                thd_x10 / 10u, thd_x10 % 10u,
-               d4_x10 / 10u, d4_x10 % 10u,
-               swt_x10 / 10u, swt_x10 % 10u,
-               DSP_LINK->dwt_transient_count);
+               b1_x10 / 10u, b1_x10 % 10u,
+               swpt_x10 / 10u, swpt_x10 % 10u,
+               DSP_LINK->wpt_transient_count);
       }
     }
   }

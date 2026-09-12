@@ -32,17 +32,19 @@ typedef struct __attribute__((packed))
   uint16_t harm_mag_mv[10]; /**< Magnitudes armonicos 1..10 (20 B)           */
   uint16_t dc_offset_mv;    /**< Componente continua (Offset DC en mV)        */
   uint16_t v_pp_mv;         /**< Voltaje pico a pico en mV                   */
-  /* --- Extension Wavelet DWT Mallat (28 B) -> Total 96 Bytes --- */
-  uint16_t dwt_energy_pct_x10[5]; /**< % energia bandas D1..A4 x10 (10 B)    */
-  uint16_t dwt_rms_mv[5];         /**< RMS de bandas D1..A4 en mV (10 B)     */
-  uint16_t dwt_transient_mag_mv;  /**< Amplitud pico del transitorio en mV (2 B) */
-  uint16_t dwt_transient_sample;  /**< Muestra del transitorio 0..2047 (2 B) */
-  uint16_t dwt_transient_count;   /**< Contador acumulado transitorios (2 B) */
-  uint16_t dwt_d1_crest_x10;      /**< Factor de cresta en D1 x10 (2 B)      */
+  /* --- Extension Wavelet Packet WPT 16 Sub-bandas (76 B) -> Total 144 Bytes --- */
+  uint16_t wpt_energy_pct_x10[16]; /**< % energia bandas B0..B15 x10 (32 B)   */
+  uint16_t wpt_rms_mv[16];         /**< RMS de bandas B0..B15 en mV (32 B)    */
+  uint16_t wpt_transient_mag_mv;   /**< Amplitud pico del transitorio en mV (2 B) */
+  uint16_t wpt_transient_sample;   /**< Muestra del transitorio 0..4095 (2 B) */
+  uint16_t wpt_transient_count;    /**< Contador acumulado transitorios (2 B) */
+  uint16_t wpt_crest_x10;          /**< Factor de cresta HF x10 (2 B)         */
+  uint16_t wpt_entropy_norm_x1000; /**< Entropia normalizada x1000 (0..1000) (2 B) */
+  uint16_t rsv_pad;                /**< Relleno de alineacion 32-bit (2 B)    */
 } UDP_DSP_TelemetryPacket_t;
 
 #if defined(__GNUC__)
-_Static_assert(sizeof(UDP_DSP_TelemetryPacket_t) == 96, "UDP_DSP_TelemetryPacket_t debe medir exactamente 96 bytes");
+_Static_assert(sizeof(UDP_DSP_TelemetryPacket_t) == 144, "UDP_DSP_TelemetryPacket_t debe medir exactamente 144 bytes");
 #endif
 
 /**
