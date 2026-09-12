@@ -1166,14 +1166,19 @@
     <!-- Escalograma 2D en Cascada (Wavelet Scalogram Waterfall) -->
     <div class="scalogram-container">
       <div class="scalogram-header">
-        <span class="scalogram-title">Escalograma 2D en Cascada (WPT Scalogram Waterfall &bull; 16 Bandas)</span>
-        <span class="scalogram-sub">Evolución temporal de energía espectral uniforme (&Delta;f = 800 Hz)</span>
+        <div>
+          <span class="scalogram-title">Escalograma 2D en Cascada (WPT Scalogram Waterfall &bull; 16 Bandas)</span>
+          <span class="scalogram-sub">Evolución temporal continua (&Delta;f = 800 Hz)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="scaloFpsBadge" style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); padding:2px 8px; border-radius:6px; font-size:0.68rem; font-family:monospace; font-weight:700;">60 Hz (60 FPS)</span>
+        </div>
       </div>
       <div class="canvas-container" id="scalogramBox" style="height: 180px;">
         <canvas id="scalogramCanvas"></canvas>
       </div>
       <div class="scalogram-footer">
-        <span style="color:#64748b; font-size:0.68rem; font-family:monospace;">&larr; Historial temporal (~15s)</span>
+        <span style="color:#64748b; font-size:0.68rem; font-family:monospace;">&larr; Historial temporal (~4s @ 60 Hz)</span>
         <div class="color-scale-bar">
           <span style="color:#64748b; font-size:0.68rem; font-family:monospace;">0%</span>
           <div class="color-gradient"></div>
@@ -1279,9 +1284,15 @@
     const scalogramBox = document.getElementById('scalogramBox');
 
     let waveletDisplayMode = 'pct'; // 'pct' o 'density'
-    let lastWaveletData = null;
-    const MAX_SCALO_COLUMNS = 75; // ~15s de historial a 5 fps
-    const scaloHistory = []; // Historial de porcentajes [B0..B15]
+    const MAX_SCALO_COLUMNS = 240; // ~4s de cascada continua a 60 Hz
+    const scaloHistory = []; // Historial de columnas [B0..B15]
+
+    // Motor de Interpolación Temporal y Refresco a 60 Hz
+    let currentInterpBands = new Array(16).fill(0);
+    let targetWptBands = new Array(16).fill(0);
+    let frameCount = 0;
+    let fpsTimer = performance.now();
+    let currentFps = 60;
 
     let currentBins = new Array(2048).fill(0);
     let peakBinIndex = 0;
@@ -1502,6 +1513,40 @@
         scalogramCtx.fillText(freqKhz, 23, y);
         scalogramCtx.font = '9px monospace';
       }
+    }
+
+    // Bucle de animación continuo a 60 Hz (60 FPS)
+    function scaloAnimationLoop(timestamp) {
+      if (!isPaused) {
+        // Interpolación temporal (LERP) hacia las bandas de la última telemetría
+        const LERP_FACTOR = 0.15; // Suavizado continuo entre paquetes a 60 FPS
+        for (let i = 0; i < 16; i++) {
+          const target = targetWptBands[i] || 0;
+          currentInterpBands[i] += (target - currentInterpBands[i]) * LERP_FACTOR;
+        }
+
+        // Agregar nueva columna de tiempo a 60 Hz
+        scaloHistory.push([...currentInterpBands]);
+        if (scaloHistory.length > MAX_SCALO_COLUMNS) {
+          scaloHistory.shift();
+        }
+
+        renderScalogram();
+
+        // Medidor de FPS en tiempo real
+        frameCount++;
+        if (timestamp - fpsTimer >= 1000) {
+          currentFps = frameCount;
+          frameCount = 0;
+          fpsTimer = timestamp;
+          const fpsBadge = document.getElementById('scaloFpsBadge');
+          if (fpsBadge) {
+            fpsBadge.textContent = `${currentFps} Hz (${currentFps} FPS)`;
+          }
+        }
+      }
+
+      requestAnimationFrame(scaloAnimationLoop);
     }
 
     // Render del Osciloscopio Reconstruido (Síntesis de Fourier)
@@ -1727,6 +1772,13 @@
           const raw = JSON.parse(e.data);
           if (isPaused) return;
 
+          // Alimentar inmediatamente el motor de animación a 60 Hz del escalograma
+          if (raw.wavelet && raw.wavelet.energy_pct) {
+            for (let i = 0; i < 16; i++) {
+              targetWptBands[i] = raw.wavelet.energy_pct[i] || 0;
+            }
+          }
+
           const dataToDisplay = enableSmoothing ? applySmoothing(raw) : raw;
 
           const now = performance.now();
@@ -1929,20 +1981,13 @@
         }
       }
 
-      // 4. Actualizar Escalograma Cascada 2D
-      if (w.energy_pct) {
-        scaloHistory.push([...w.energy_pct]);
-        if (scaloHistory.length > MAX_SCALO_COLUMNS) {
-          scaloHistory.shift();
-        }
-        renderScalogram();
-      }
+      // 4. El escalograma se actualiza de forma continua y fluida a 60 Hz en scaloAnimationLoop()
     }
 
     function updateNetRateText() {
       if (netRateEl) {
         const rateSec = (refreshIntervalMs / 1000).toFixed(1);
-        netRateEl.textContent = `6.25 Hz UDP | UI: ${rateSec}s`;
+        netRateEl.textContent = `6.25 Hz UDP | UI: ${rateSec}s | Scalo: 60 FPS`;
       }
     }
 
@@ -1999,6 +2044,7 @@
       resizeScopeCanvas();
       resizeScaloCanvas();
       connectSSE();
+      requestAnimationFrame(scaloAnimationLoop);
     });
   </script>
 </body>
