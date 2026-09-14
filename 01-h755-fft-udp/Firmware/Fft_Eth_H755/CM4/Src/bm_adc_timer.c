@@ -96,6 +96,59 @@ static int adc1_enable(void)
   return 0;
 }
 
+static void dma1_stream0_init(void)
+{
+  /* 1. Deshabilitar el stream 0 por si estuviera activo y esperar a que EN = 0 */
+  DMA1_Stream0->CR &= ~DMA_SxCR_EN;
+  while ((DMA1_Stream0->CR & DMA_SxCR_EN) != 0u)
+  {
+  }
+
+  /* 2. Limpiar todos los flags de interrupcion del Stream 0 en LIFCR */
+  DMA1->LIFCR = DMA_LIFCR_CTCIF0 | DMA_LIFCR_CHTIF0 |
+                DMA_LIFCR_CTEIF0 | DMA_LIFCR_CDMEIF0 | DMA_LIFCR_CFEIF0;
+
+  /* 3. Asignar la solicitud ADC1 (ID = 9) al canal 0 de DMAMUX1 (Stream 0 de DMA1) */
+  DMAMUX1_Channel0->CCR = (9U << DMAMUX_CxCR_DMAREQ_ID_Pos);
+
+  /* 4. Direccion periferica: registro de datos de conversion del ADC1 */
+  DMA1_Stream0->PAR = (uint32_t)&(ADC1->DR);
+
+  /* 5. Direccion de memoria base: inicio del buffer Ping-Pong en SRAM4 */
+  DMA1_Stream0->M0AR = (uint32_t)&(DSP_LINK->raw_buffer[0][0]);
+
+  /* 6. Cantidad de elementos: 2 bloques de 4096 muestras (8192 medias palabras) */
+  DMA1_Stream0->NDTR = 2U * DSP_BLOCK_SIZE;
+
+  /* 7. FIFO Control: modo directo sin FIFO (DMDIS = 0) */
+  DMA1_Stream0->FCR = 0u;
+
+  /* 8. Configuracion del stream:
+   *    - Prioridad: Muy Alta (PL = 0b11)
+   *    - MSIZE = 16 bits (0b01)
+   *    - PSIZE = 16 bits (0b01)
+   *    - MINC = Incremento de memoria activado
+   *    - PINC = Incremento de periferico desactivado (fijo en ADC1->DR)
+   *    - CIRC = Modo circular continuo activado
+   *    - DIR = Periferico a Memoria (0b00)
+   *    - HTIE = Interrupcion de media transferencia (buffer 0 completo)
+   *    - TCIE = Interrupcion de transferencia completa (buffer 1 completo)
+   *    - TEIE = Interrupcion de error de bus
+   */
+  DMA1_Stream0->CR = (0x3UL << DMA_SxCR_PL_Pos)    |
+                     (0x1UL << DMA_SxCR_MSIZE_Pos) |
+                     (0x1UL << DMA_SxCR_PSIZE_Pos) |
+                     DMA_SxCR_MINC                 |
+                     DMA_SxCR_CIRC                 |
+                     DMA_SxCR_HTIE                 |
+                     DMA_SxCR_TCIE                 |
+                     DMA_SxCR_TEIE;
+
+  /* 9. Configurar NVIC para DMA1_Stream0_IRQn (prioridad 2) */
+  NVIC_SetPriority(DMA1_Stream0_IRQn, 2);
+  NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+}
+
 int BM_ADC_Timer_Init(uint32_t timer_clk_hz, uint32_t fs_hz)
 {
   if (fs_hz == 0u)
@@ -103,8 +156,8 @@ int BM_ADC_Timer_Init(uint32_t timer_clk_hz, uint32_t fs_hz)
     fs_hz = DSP_FS_DEFAULT;
   }
 
-  /* 1. Habilitar relojes de perifericos en el Cortex-M4 */
-  RCC_C2->AHB1ENR |= RCC_AHB1ENR_ADC12EN;
+  /* 1. Habilitar relojes de perifericos en el Cortex-M4: ADC1/2, DMA1 y TIM3 */
+  RCC_C2->AHB1ENR |= RCC_AHB1ENR_ADC12EN | RCC_AHB1ENR_DMA1EN;
   RCC_C2->APB1LENR |= RCC_APB1LENR_TIM3EN;
   (void)RCC_C2->AHB1ENR;
   (void)RCC_C2->APB1LENR;
@@ -112,10 +165,13 @@ int BM_ADC_Timer_Init(uint32_t timer_clk_hz, uint32_t fs_hz)
   /* 2. Inicializar GPIO PA3 */
   adc_gpio_init();
 
-  /* 3. Prescaler comun ADC1/2: /4 (0b0010 = 0x2) */
+  /* 3. Inicializar DMA1 Stream 0 y DMAMUX1 Canal 0 */
+  dma1_stream0_init();
+
+  /* 4. Prescaler comun ADC1/2: /4 (0b0010 = 0x2) */
   ADC12_COMMON->CCR = (0x2UL << ADC_CCR_PRESC_Pos);
 
-  /* 4. Encendido, calibracion y habilitacion del ADC1 */
+  /* 5. Encendido, calibracion y habilitacion del ADC1 */
   if (adc1_power_up() != 0) return -1;
   if (adc1_calibrate() != 0) return -2;
 
@@ -125,25 +181,24 @@ int BM_ADC_Timer_Init(uint32_t timer_clk_hz, uint32_t fs_hz)
 
   if (adc1_enable() != 0) return -3;
 
-  /* 5. Configuracion del canal 15 (PA3):
+  /* 6. Configuracion del canal 15 (PA3):
         SMPR2 cubre canales 10 a 19. SMP15 = 2 (8.5 ciclos de conversion) */
   MODIFY_REG(ADC1->SMPR2, ADC_SMPR2_SMP15, (0x2UL << ADC_SMPR2_SMP15_Pos));
 
   /* Secuencia regular: 1 conversion, canal 15 en SQ1 */
   ADC1->SQR1 = (15UL << ADC_SQR1_SQ1_Pos);
 
-  /* Disparo externo por hardware: EXTSEL=4 (TIM3 TRGO), EXTEN=1 (flanco de subida) */
-  ADC1->CFGR = (4UL << ADC_CFGR_EXTSEL_Pos) | (1UL << ADC_CFGR_EXTEN_Pos);
+  /* Disparo externo por hardware: EXTSEL=4 (TIM3 TRGO), EXTEN=1 (flanco de subida)
+     y gestion de datos por DMA en modo circular: DMNGT=3 */
+  ADC1->CFGR = (4UL << ADC_CFGR_EXTSEL_Pos) |
+               (1UL << ADC_CFGR_EXTEN_Pos)  |
+               (3UL << ADC_CFGR_DMNGT_Pos);
 
-  /* Habilitar interrupcion EOC */
-  ADC1->IER |= ADC_IER_EOCIE;
+  /* Deshabilitar interrupcion EOC del ADC (el DMA gestiona la transferencia) */
+  ADC1->IER = 0u;
 
-  /* 6. Configuracion de TIM3 como generador de TRGO */
+  /* 7. Configuracion de TIM3 como generador de TRGO */
   BM_ADC_Timer_SetFs(timer_clk_hz, fs_hz);
-
-  /* Configurar NVIC para ADC_IRQn (prioridad 2) */
-  NVIC_SetPriority(ADC_IRQn, 2);
-  NVIC_EnableIRQ(ADC_IRQn);
 
   return 0;
 }
@@ -165,6 +220,15 @@ void BM_ADC_Timer_SetFs(uint32_t timer_clk_hz, uint32_t fs_hz)
 
 void BM_ADC_Timer_Start(void)
 {
+  /* Asegurar que el stream DMA este habilitado antes de arrancar el ADC */
+  if ((DMA1_Stream0->CR & DMA_SxCR_EN) == 0u)
+  {
+    DMA1->LIFCR = DMA_LIFCR_CTCIF0 | DMA_LIFCR_CHTIF0 |
+                  DMA_LIFCR_CTEIF0 | DMA_LIFCR_CDMEIF0 | DMA_LIFCR_CFEIF0;
+    DMA1_Stream0->NDTR = 2U * DSP_BLOCK_SIZE;
+    DMA1_Stream0->CR |= DMA_SxCR_EN;
+  }
+
   ADC1->ISR = ADC_ISR_EOC | ADC_ISR_EOS | ADC_ISR_OVR;
   ADC1->CR |= ADC_CR_ADSTART;
   TIM3->CR1 |= TIM_CR1_CEN;
@@ -176,51 +240,66 @@ void BM_ADC_Timer_Stop(void)
 {
   TIM3->CR1 &= ~TIM_CR1_CEN;
   ADC1->CR |= ADC_CR_ADSTP;
+  (void)wait_clear(&ADC1->CR, ADC_CR_ADSTP);
+
+  DMA1_Stream0->CR &= ~DMA_SxCR_EN;
+  (void)wait_clear(&DMA1_Stream0->CR, DMA_SxCR_EN);
+
   DSP_LINK->flags &= ~DSP_FLAG_RUNNING;
   __DSB();
 }
 
 /**
-  * @brief  Manejador de interrupcion de conversion ADC1.
-  *         Se ejecuta a la cadencia exacta de fs (ej. 25.6 kHz, cada 39 us).
-  *         Inserta la muestra en el buffer Ping-Pong activo en SRAM4.
+  * @brief  Manejador de interrupcion del DMA1 Stream 0.
+  *         Se ejecuta en dos eventos por ciclo de 8192 muestras (cadencia de 6.25 Hz):
+  *         - HT (Half Transfer): Buffer 0 lleno (4096 muestras).
+  *         - TC (Transfer Complete): Buffer 1 lleno (4096 muestras).
+  *         Alterna indices de Ping-Pong y notifica al Cortex-M7 con minima latencia.
+  */
+void DMA1_Stream0_IRQHandler(void)
+{
+  uint32_t lisr = DMA1->LISR;
+
+  if ((lisr & DMA_LISR_HTIF0) != 0u)
+  {
+    /* Limpiar flag de Half Transfer */
+    DMA1->LIFCR = DMA_LIFCR_CHTIF0;
+
+    /* Buffer 0 (primeras 4096 muestras) esta completo y listo para CM7 */
+    DSP_LINK->ready_idx    = 0u;
+    DSP_LINK->active_idx   = 1u;
+    DSP_LINK->sample_count = DSP_BLOCK_SIZE;
+    DSP_LINK->block_id++;
+    DSP_LINK->t_block_ms   = BM_GetTick();
+    __DSB();
+  }
+
+  if ((lisr & DMA_LISR_TCIF0) != 0u)
+  {
+    /* Limpiar flag de Transfer Complete */
+    DMA1->LIFCR = DMA_LIFCR_CTCIF0;
+
+    /* Buffer 1 (segundas 4096 muestras) esta completo y listo para CM7 */
+    DSP_LINK->ready_idx    = 1u;
+    DSP_LINK->active_idx   = 0u;
+    DSP_LINK->sample_count = DSP_BLOCK_SIZE;
+    DSP_LINK->block_id++;
+    DSP_LINK->t_block_ms   = BM_GetTick();
+    __DSB();
+  }
+
+  if ((lisr & DMA_LISR_TEIF0) != 0u)
+  {
+    /* Limpiar flag de Transfer Error */
+    DMA1->LIFCR = DMA_LIFCR_CTEIF0;
+  }
+}
+
+/**
+  * @brief  Fallback por si el ADC genera una interrupcion inesperada.
   */
 void ADC_IRQHandler(void)
 {
-  /* Leer dato (limpia automaticamente el flag EOC) */
-  uint16_t sample = (uint16_t)(ADC1->DR & 0xFFFFu);
-
-  uint32_t act   = DSP_LINK->active_idx;
-  uint32_t count = DSP_LINK->sample_count;
-
-  /* Limpiar flag de clipping al inicio de cada nuevo bloque */
-  if (count == 0u)
-  {
-    DSP_LINK->flags &= ~DSP_FLAG_CLIPPING;
-  }
-
-  /* Chequeo de saturacion en rieles (cerca de 0 V o 3.3 V) */
-  if ((sample <= 2u) || (sample >= 0xFFFDu))
-  {
-    DSP_LINK->flags |= DSP_FLAG_CLIPPING;
-  }
-
-  DSP_LINK->raw_buffer[act][count] = sample;
-  count++;
-
-  if (count >= DSP_BLOCK_SIZE)
-  {
-    /* Bloque completo: conmutar Ping-Pong y notificar al Cortex-M7 */
-    DSP_LINK->ready_idx  = act;
-    act ^= 1u;
-    DSP_LINK->active_idx = act;
-    DSP_LINK->sample_count = 0u;
-    DSP_LINK->block_id++;
-    DSP_LINK->t_block_ms = BM_GetTick();
-    __DSB();
-  }
-  else
-  {
-    DSP_LINK->sample_count = count;
-  }
+  ADC1->ISR = ADC1->ISR;
 }
+
