@@ -1,6 +1,6 @@
-# 01-h755-fft-udp: Adquisición Periódica en M4, FFT y Telemetría UDP en M7
+# 01-h755-fft-udp: Adquisición Determinista en M4, FFT + Wavelet (WPT) y Telemetría UDP en M7
 
-Ejercicio de adquisición y análisis espectral en tiempo real sobre la **NUCLEO-H755ZI-Q**, demostrando la **justificación arquitectónica del procesador dual-core**.
+Sistema de adquisición y análisis espectral/tiempo-escala en tiempo real sobre la **NUCLEO-H755ZI-Q**, demostrando la **justificación arquitectónica del procesador dual-core STM32H755ZI**.
 
 ---
 
@@ -8,45 +8,48 @@ Ejercicio de adquisición y análisis espectral en tiempo real sobre la **NUCLEO
 
 En instrumentación de señales procedentes de sensores piezoeléctricos (modo carga / acelerómetros / presión dinámica):
 * **El Cortex-M4 (200 MHz, Bare-Metal):**
-  - Muestreo periódico estricto por hardware (`TIM3 TRGO` $\rightarrow$ `ADC1` regular channel en `PA3`).
+  - Muestreo periódico estricto por hardware (`TIM3 TRGO` $\rightarrow$ `ADC1` en canal `PA3` $\rightarrow$ `DMA1_Stream0` en modo circular con `DMAMUX1`).
   - **Cero jitter temporal**, fundamental para no degradar el piso de ruido de fase en la FFT.
-  - Gestión directa de buffer Ping-Pong ($2 \times 1024$ muestras `uint16_t` = 4 KB) en `SRAM4` (`0x38000000`).
-  - Duerme con `__WFI()` entre muestras, minimizando el ruido conducido al plano de masa del ADC.
+  - Gestión automática por hardware de doble buffer Ping-Pong ($2 \times 4096$ muestras `uint16_t` = $16\text{ KB}$) en `SRAM4` (`0x38000000`) mediante interrupciones de media transferencia (`HTIF`) y transferencia completa (`TCIF`).
+  - Duerme con `__WFI()` entre transferencias, minimizando el ruido digital conducido al plano analógico del ADC.
 * **El Cortex-M7 (400 MHz, HAL + lwIP + CMSIS-DSP):**
   - Dueño del arranque y del árbol de relojes globales (400 MHz, `FLASH_LATENCY_4`).
-  - Caches L1 I/D activas (32 KB cada una).
-  - Región `SRAM4` programada como **no cacheable** en la MPU para lectura sin contención de datos.
-  - Ventana Hanning y ejecución de RFFT de 1024 puntos con CMSIS-DSP (`arm_rfft_fast_f32`) en $\approx 60\ \mu\text{s}$ (apenas $0.15\%$ de su CPU a $f_s = 25.6\text{ kHz}$).
-  - Algoritmo de detección armónica: fundamental $f_0$, armónicos $2f_0 \dots 5f_0$, estimación de piso de ruido y THD.
-  - Pila de red lwIP RAW: emite datagramas UDP en el puerto `:5002` a 25 Hz hacia herramientas host.
+  - Cachés L1 I/D activas (32 KB cada una) y FPU de doble precisión.
+  - Región `SRAM4` configurada como **no cacheable** en la MPU para lectura determinista sin incoherencia de caché.
+  - **Pipeline FFT:** Eliminación de offset DC, ventana **Blackman-Harris de 4 términos** ($-92\text{ dB}$ de lóbulo lateral), RFFT de **4096 puntos** con CMSIS-DSP (`arm_rfft_fast_f32`), interpolación parabólica sub-bin y detección de fundamental $f_0$, armónicos $2f_0 \dots 10f_0$, piso de ruido, SNR y THD.
+  - **Pipeline Wavelet (WPT):** Transformada de Paquetes Wavelet **Daubechies-4 (`db4`)** de 4 niveles con árbol binario completo de **16 sub-bandas uniformes** ($\Delta f_{\text{WPT}} = 800\text{ Hz}$ por banda), reordenamiento espectral monótono mediante código Gray (orden de Paley), entropía de Shannon normalizada y detección de impactos/transitorios por factor de cresta.
+  - **Pila de red lwIP RAW:** Emite telemetría UDP en el puerto `:5002` hacia el Dashboard Web y herramientas host.
 
 ---
 
-## 2. Parámetros del Análisis Espectral
+## 2. Parámetros del Sistema DSP
 
 | Parámetro | Valor |
 |---|---|
-| Pin de entrada | `PA3` (Conector A0) |
+| Pin de entrada analógica | `PA3` (`ADC1_INP15`, Conector Arduino `A0`) |
 | Frecuencia de muestreo ($f_s$) | $25600\text{ Hz}$ ($25.6\text{ kHz}$) |
-| Tamaño de bloque ($N$) | $1024\text{ muestras}$ |
-| Resolución en frecuencia ($\Delta f$) | $\frac{25600}{1024} = 25.0\text{ Hz}$ por bin |
-| Rango de Nyquist | $0\text{ Hz}$ a $12.8\text{ kHz}$ (512 bins espectrales) |
-| Cadencia de bloque | $40.0\text{ ms}$ ($25\text{ bloques por segundo}$) |
+| Tamaño de bloque ($N$) | $4096\text{ muestras}$ |
+| Período de bloque ($T_{\text{bloque}}$) | $160.0\text{ ms}$ ($6.25\text{ bloques/s}$) |
+| Resolución espectral FFT ($\Delta f_{\text{FFT}}$) | $\frac{25600}{4096} = 6.25\text{ Hz}$ por bin |
+| Rango de Nyquist | $0\text{ Hz}$ a $12.8\text{ kHz}$ ($2048\text{ bins espectrales}$) |
+| Descomposición Wavelet (WPT) | $J = 4$ niveles (`db4`, 8 coeficientes QMF) $\rightarrow 16\text{ sub-bandas}$ |
+| Ancho de cada sub-banda WPT ($\Delta f_{\text{WPT}}$) | $800.0\text{ Hz}$ ($256\text{ coeficientes por sub-banda}$) |
 
 ---
 
 ## 3. Estructura de la Memoria Compartida (SRAM4 `0x38000000`)
 
-Declarada en [`Common/Inc/dsp_link.h`](Common/Inc/dsp_link.h):
+Declarada en [`Firmware/Fft_Eth_H755/Common/Inc/dsp_link.h`](Firmware/Fft_Eth_H755/Common/Inc/dsp_link.h):
 
 ```
-  0x38000000  0x000: Contrato de arranque (magic, version, relojes, vrefint_cal, fs)
+  0x38000000  0x000: Contrato de arranque (magic, version, relojes, vrefint_cal, fs, block_size=4096)
   0x38000040  0x040: Zona de mando (cmd_seq, cmd_ack, cmd_run, cmd_fs_hz)
-  0x38000080  0x080: Sincronizacion y telemetria (block_id, ready_idx, active_idx, flags)
-  0x3800009C  0x09C: Metricas DSP publicadas por CM7 (f0, amplitud, ruido, SNR, THD)
-  0x380000C4  0x0C4: Trampa de HardFault del CM4 (CFSR, HFSR, BFAR, PC, LR)
-  0x38000200  0x200: Buffer Ping-Pong 0 (1024 x 2 bytes = 2048 B)
-  0x38000A00  0xA00: Buffer Ping-Pong 1 (1024 x 2 bytes = 2048 B)
+  0x38000080  0x080: Sincronización y telemetría (block_id, ready_idx, active_idx, flags)
+  0x3800009C  0x09C: Métricas FFT publicadas por CM7 (f0, amplitud, ruido, SNR, THD, 10 armónicos, DC, Vpp)
+  0x380000E0  0x0E0: Trampa de HardFault del CM4 (CFSR, HFSR, BFAR, PC, LR)
+  0x380000F8  0x0F8: Métricas Wavelet WPT (energía % y RMS de 16 bandas, transitorios, factor cresta, entropía)
+  0x38000200  0x200: Buffer Ping-Pong 0 (4096 x 2 bytes = 8192 B)
+  0x38002200  0x2200: Buffer Ping-Pong 1 (4096 x 2 bytes = 8192 B)
 ```
 
 ---
@@ -54,25 +57,34 @@ Declarada en [`Common/Inc/dsp_link.h`](Common/Inc/dsp_link.h):
 ## 4. Servidor UDP (Puerto 5002)
 
 Comandos soportados vía datagrama UDP:
-* `STREAM`: Inicia el flujo continuo de telemetría espectral (datagramas binarios de 64 bytes a 25 Hz).
-* `STOP`: Detiene el flujo de telemetría.
-* `SPECTRUM`: Devuelve el paquete completo de 512 bins de magnitud en milivoltios.
-* `STATUS`: Devuelve texto descriptivo del estado actual de detección.
-* `FS <hz>`: Solicita al CM4 reconfigurar la frecuencia de muestreo.
+* `STREAM`: Inicia el flujo continuo de telemetría (datagramas binarios de 212 bytes con métricas FFT + WPT de 16 bandas).
+* `STOP`: Detiene el flujo continuo de telemetría.
+* `SPECTRUM`: Devuelve los 2048 bins de magnitud FFT en milivoltios fragmentados en 4 datagramas UDP.
+* `WAVE`: Devuelve la ventana temporal de muestras crudas calibradas en milivoltios para el osciloscopio virtual.
+* `STATUS`: Devuelve resumen en texto de las métricas FFT y WPT actuales.
+* `FS <hz>`: Solicita al CM4 reconfigurar dinámicamente la frecuencia de muestreo.
 * `HELP`: Muestra los comandos disponibles.
 
 ---
 
-## 5. Visualizador Host en Python
+## 5. Herramientas, Flasheo y Visualización
 
-En [`Tools/dsp_visualizer.py`](Tools/dsp_visualizer.py):
+### Dashboard Web en Tiempo Real (Recomendado)
+Ubicado en [`Tools/web_dashboard/`](Tools/web_dashboard/README.md) (servidor ligero en Node.js sin dependencias externas + interfaz modular HTML5/Canvas/SSE):
 ```bash
-python Tools/dsp_visualizer.py --ip 192.168.1.50 --port 5002
+cd Tools/web_dashboard
+node server.js --ip 192.168.1.50 --port 5002
 ```
-Muestra en consola la tabla de telemetría en tiempo real:
+Abre `http://localhost:8088` en el navegador para visualizar:
+1. **Osciloscopio Virtual** con disparo configurable y filtros digitales en tiempo real (Pasa-Bajos, Pasa-Altos, Pasa-Banda, Notch).
+2. **Analizador de Espectro FFT de 2048 bins** ($\Delta f = 6.25\text{ Hz}$) y tabla de 10 armónicos.
+3. **Analizador Multirresolución WPT de 16 sub-bandas** con **Escalograma 2D en cascada a 60 Hz**, entropía de Shannon y detector de transitorios.
+
+### Flasheo Dual-Core en 1 Clic
+Consulta [`Tools/COMO_FLASHEAR.md`](Tools/COMO_FLASHEAR.md) o ejecuta directamente:
+```powershell
+.\Tools\flash_dualcore.ps1
 ```
-  Bloque |   Estado   |   f0 (Hz) | Ampl (mV) | Ruido (mV) |  THD (%) |  SNR (dB)
---------------------------------------------------------------------------------
-     120 | PERIODICA  |    1000.0 |       850 |          4 |      1.2 |     46.5
-     121 | PERIODICA  |    1000.0 |       850 |          4 |      1.2 |     46.5
-```
+
+### Documentación Teórica
+El desarrollo matemático completo de los algoritmos implementados se encuentra en [`DOCS/REPORTE_TEORICO_DSP.md`](DOCS/REPORTE_TEORICO_DSP.md).
