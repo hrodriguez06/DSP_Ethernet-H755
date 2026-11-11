@@ -277,6 +277,23 @@ function broadcastSSE(event, data) {
   }
 }
 
+// Mapeo de tipos MIME para archivos estáticos
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf'
+};
+
 // Servidor HTTP
 const server = http.createServer((req, res) => {
   // CORS para cualquier origen local
@@ -337,17 +354,47 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Archivo estatico index.html
-  const indexPath = path.join(__dirname, 'public', 'index.html');
-  fs.readFile(indexPath, (err, data) => {
-    if (err) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
-      res.end('Error al leer index.html: ' + err.message);
+  // Servidor de archivos estáticos en carpeta public
+  const publicDir = path.resolve(__dirname, 'public');
+  let reqPath = decodeURI((req.url || '/').split('?')[0]);
+  if (reqPath === '/' || reqPath === '') {
+    reqPath = '/index.html';
+  }
+  const safePath = path.normalize(path.join(publicDir, reqPath));
+  if (!safePath.startsWith(publicDir)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Acceso denegado');
+    return;
+  }
+
+  fs.stat(safePath, (err, stats) => {
+    if (err || !stats.isFile()) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Archivo no encontrado: ' + reqPath);
       return;
     }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(data);
+
+    const ext = path.extname(safePath).toLowerCase();
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': contentType });
+    fs.createReadStream(safePath).pipe(res);
   });
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error('================================================================');
+    console.error(` [ERROR] El puerto ${HTTP_PORT} ya está en uso.`);
+    console.error('================================================================');
+    console.error(' Hay otra instancia del servidor ejecutándose en segundo plano.');
+    console.error(' Para cerrarla en Windows, puedes ejecutar en una terminal:');
+    console.error('   taskkill /F /IM node.exe');
+    console.error(' O cambiar el puerto configurando la variable PORT (ej. set PORT=8089).');
+    console.error('================================================================');
+    process.exit(1);
+  } else {
+    console.error(`[HTTP] Error en servidor: ${err.message}`);
+  }
 });
 
 server.listen(HTTP_PORT, '0.0.0.0', () => {
